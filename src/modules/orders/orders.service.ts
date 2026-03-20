@@ -109,13 +109,17 @@ export class OrdersService {
       orderNo,
     };
 
-    const [order] = await this.db
+    const [inserted] = await this.db
       .insert(schema.orders)
       .values(orderData)
-      .returning();
+      .$returningId();
+
+    if (!inserted?.id) {
+      throw new Error('创建订单失败');
+    }
 
     const orderItemsData = data.items.map((item) => ({
-      orderId: order.id,
+      orderId: inserted.id,
       ...item,
     }));
 
@@ -123,15 +127,12 @@ export class OrdersService {
       .insert(schema.orderItems)
       .values(orderItemsData);
 
-    const items = await this.db
-      .select()
-      .from(schema.orderItems)
-      .where(eq(schema.orderItems.orderId, order.id));
+    const order = await this.getOrder(inserted.id);
+    if (!order) {
+      throw new Error('创建订单失败');
+    }
 
-    return {
-      ...order,
-      items,
-    } as unknown as Order;
+    return order;
   }
 
   async updateOrderStatus(id: number, status: OrderStatus): Promise<Order | null> {
@@ -143,25 +144,12 @@ export class OrdersService {
       updates.deliveredAt = new Date();
     }
 
-    const [order] = await this.db
+    await this.db
       .update(schema.orders)
       .set(updates)
-      .where(eq(schema.orders.id, id))
-      .returning();
+      .where(eq(schema.orders.id, id));
 
-    if (!order) {
-      return null;
-    }
-
-    const items = await this.db
-      .select()
-      .from(schema.orderItems)
-      .where(eq(schema.orderItems.orderId, order.id));
-
-    return {
-      ...order,
-      items,
-    } as unknown as Order;
+    return this.getOrder(id);
   }
 
   async shipOrder(id: number, shippingInfo: { trackingNumber?: string; shippingCompany?: string }): Promise<Order | null> {
@@ -173,28 +161,15 @@ export class OrdersService {
   }
 
   async refundOrder(id: number, data: { amount: number; reason?: string }): Promise<Order | null> {
-    const [order] = await this.db
+    await this.db
       .update(schema.orders)
       .set({
         status: 'refunded',
         paymentStatus: 'refunded',
       })
-      .where(eq(schema.orders.id, id))
-      .returning();
+      .where(eq(schema.orders.id, id));
 
-    if (!order) {
-      return null;
-    }
-
-    const items = await this.db
-      .select()
-      .from(schema.orderItems)
-      .where(eq(schema.orderItems.orderId, order.id));
-
-    return {
-      ...order,
-      items,
-    } as unknown as Order;
+    return this.getOrder(id);
   }
 
   private generateOrderNo(): string {

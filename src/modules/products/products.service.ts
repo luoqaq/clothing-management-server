@@ -1,4 +1,4 @@
-import { eq, like, and, gte, lte, count } from 'drizzle-orm';
+import { eq, like, and, gte, lte, count, desc } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { Product, ProductCategory, ProductFilters } from '../../types';
 
@@ -43,7 +43,7 @@ export class ProductsService {
       .select()
       .from(schema.products)
       .where(whereClause)
-      .orderBy(schema.products.createdAt)
+      .orderBy(desc(schema.products.id))
       .limit(pageSize)
       .offset(offset);
 
@@ -74,38 +74,50 @@ export class ProductsService {
     const result = await this.db
       .insert(schema.products)
       .values(data)
-      .returning();
+      .$returningId();
 
-    return result[0] as unknown as Product;
+    const insertedId = result[0]?.id;
+    if (!insertedId) {
+      throw new Error('创建商品失败');
+    }
+
+    const product = await this.getProduct(insertedId);
+    if (!product) {
+      throw new Error('创建商品失败');
+    }
+
+    return product;
   }
 
   async updateProduct(id: number, data: Partial<Omit<Product, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Product | null> {
-    const result = await this.db
+    await this.db
       .update(schema.products)
       .set(data)
-      .where(eq(schema.products.id, id))
-      .returning();
+      .where(eq(schema.products.id, id));
 
-    return result[0] as unknown as Product | null;
+    return this.getProduct(id);
   }
 
   async deleteProduct(id: number): Promise<boolean> {
-    const result = await this.db
-      .delete(schema.products)
-      .where(eq(schema.products.id, id))
-      .returning();
+    const existing = await this.getProduct(id);
+    if (!existing) {
+      return false;
+    }
 
-    return result.length > 0;
+    await this.db
+      .delete(schema.products)
+      .where(eq(schema.products.id, id));
+
+    return true;
   }
 
   async updateStock(id: number, stock: number): Promise<Product | null> {
-    const result = await this.db
+    await this.db
       .update(schema.products)
       .set({ stock })
-      .where(eq(schema.products.id, id))
-      .returning();
+      .where(eq(schema.products.id, id));
 
-    return result[0] as unknown as Product | null;
+    return this.getProduct(id);
   }
 
   async getCategories(): Promise<ProductCategory[]> {
@@ -121,27 +133,52 @@ export class ProductsService {
     const result = await this.db
       .insert(schema.productCategories)
       .values(data)
-      .returning();
+      .$returningId();
 
-    return result[0] as unknown as ProductCategory;
+    const insertedId = result[0]?.id;
+    if (!insertedId) {
+      throw new Error('创建分类失败');
+    }
+
+    const categories = await this.db
+      .select()
+      .from(schema.productCategories)
+      .where(eq(schema.productCategories.id, insertedId))
+      .limit(1);
+
+    return categories[0] as unknown as ProductCategory;
   }
 
   async updateCategory(id: number, data: Partial<Omit<ProductCategory, 'id'>>): Promise<ProductCategory | null> {
-    const result = await this.db
+    await this.db
       .update(schema.productCategories)
       .set(data)
-      .where(eq(schema.productCategories.id, id))
-      .returning();
+      .where(eq(schema.productCategories.id, id));
 
-    return result[0] as unknown as ProductCategory | null;
+    const categories = await this.db
+      .select()
+      .from(schema.productCategories)
+      .where(eq(schema.productCategories.id, id))
+      .limit(1);
+
+    return (categories[0] as unknown as ProductCategory | undefined) ?? null;
   }
 
   async deleteCategory(id: number): Promise<boolean> {
-    const result = await this.db
-      .delete(schema.productCategories)
+    const categories = await this.db
+      .select()
+      .from(schema.productCategories)
       .where(eq(schema.productCategories.id, id))
-      .returning();
+      .limit(1);
 
-    return result.length > 0;
+    if (categories.length === 0) {
+      return false;
+    }
+
+    await this.db
+      .delete(schema.productCategories)
+      .where(eq(schema.productCategories.id, id));
+
+    return true;
   }
 }

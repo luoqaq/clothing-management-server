@@ -1,10 +1,18 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { StatisticsSummary, DailySalesData, ProductSalesRanking, CategorySalesData, RegionSalesData } from '../../types';
 import dayjs from 'dayjs';
 
 export class StatisticsService {
   constructor(private db: any) {}
+
+  private buildPaidOrdersDateRangeWhere(dateRange: { start: string; end: string }) {
+    return and(
+      gte(schema.orders.createdAt, new Date(dateRange.start)),
+      lte(schema.orders.createdAt, new Date(`${dateRange.end} 23:59:59`)),
+      eq(schema.orders.paymentStatus, 'paid')
+    );
+  }
 
   async getSalesOverview(dateRange: { start: string; end: string }): Promise<StatisticsSummary> {
     const orders = await this.db
@@ -14,11 +22,7 @@ export class StatisticsService {
         customerPhone: schema.orders.customerPhone,
       })
       .from(schema.orders)
-      .where((e) => e.and(
-        e.gte(schema.orders.createdAt, dateRange.start),
-        e.lte(schema.orders.createdAt, dateRange.end + ' 23:59:59'),
-        e.eq(schema.orders.paymentStatus, 'paid')
-      ));
+      .where(this.buildPaidOrdersDateRangeWhere(dateRange));
 
     const totalRevenue = orders.reduce((sum, order) => sum + Number(order.finalAmount), 0);
     const totalOrders = orders.length;
@@ -38,11 +42,7 @@ export class StatisticsService {
         customerPhone: schema.orders.customerPhone,
       })
       .from(schema.orders)
-      .where((e) => e.and(
-        e.gte(schema.orders.createdAt, previousPeriod.start),
-        e.lte(schema.orders.createdAt, previousPeriod.end + ' 23:59:59'),
-        e.eq(schema.orders.paymentStatus, 'paid')
-      ));
+      .where(this.buildPaidOrdersDateRangeWhere(previousPeriod));
 
     const previousRevenue = previousOrders.reduce((sum, order) => sum + Number(order.finalAmount), 0);
     const previousOrdersCount = previousOrders.length;
@@ -73,11 +73,7 @@ export class StatisticsService {
         createdAt: schema.orders.createdAt,
       })
       .from(schema.orders)
-      .where((e) => e.and(
-        e.gte(schema.orders.createdAt, dateRange.start),
-        e.lte(schema.orders.createdAt, dateRange.end + ' 23:59:59'),
-        e.eq(schema.orders.paymentStatus, 'paid')
-      ));
+      .where(this.buildPaidOrdersDateRangeWhere(dateRange));
 
     const dailyData: Record<string, DailySalesData> = {};
 
@@ -143,13 +139,9 @@ export class StatisticsService {
       .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id));
 
     if (dateRange) {
-      itemsQuery = itemsQuery.where((e) => e.and(
-        e.gte(schema.orders.createdAt, dateRange.start),
-        e.lte(schema.orders.createdAt, dateRange.end + ' 23:59:59'),
-        e.eq(schema.orders.paymentStatus, 'paid')
-      ));
+      itemsQuery = itemsQuery.where(this.buildPaidOrdersDateRangeWhere(dateRange));
     } else {
-      itemsQuery = itemsQuery.where((e) => e.eq(schema.orders.paymentStatus, 'paid'));
+      itemsQuery = itemsQuery.where(eq(schema.orders.paymentStatus, 'paid'));
     }
 
     const items = await itemsQuery;
@@ -190,11 +182,7 @@ export class StatisticsService {
       .from(schema.orderItems)
       .innerJoin(schema.products, eq(schema.orderItems.productId, schema.products.id))
       .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
-      .where((e) => e.and(
-        e.gte(schema.orders.createdAt, dateRange.start),
-        e.lte(schema.orders.createdAt, dateRange.end + ' 23:59:59'),
-        e.eq(schema.orders.paymentStatus, 'paid')
-      ));
+      .where(this.buildPaidOrdersDateRangeWhere(dateRange));
 
     const productCategoryMap: Record<number, number> = {};
     for (const category of categories) {
@@ -244,11 +232,7 @@ export class StatisticsService {
         address: schema.orders.address,
       })
       .from(schema.orders)
-      .where((e) => e.and(
-        e.gte(schema.orders.createdAt, dateRange.start),
-        e.lte(schema.orders.createdAt, dateRange.end + ' 23:59:59'),
-        e.eq(schema.orders.paymentStatus, 'paid')
-      ));
+      .where(this.buildPaidOrdersDateRangeWhere(dateRange));
 
     const regionSales: Record<string, { region: string; revenue: number; orders: number }> = {};
 
