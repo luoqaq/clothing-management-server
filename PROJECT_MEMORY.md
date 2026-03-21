@@ -3,6 +3,47 @@
 最近更新：2026-03-21
 
 ## 会话更新（2026-03-21）
+- 已新增商品图片上传能力，采用“前端压缩后直传腾讯云 COS + 后端签发临时上传凭证”的方案。
+- 后端新增 `/api/assets/upload-policy`：
+  - 需要登录态
+  - 当前已接入商品场景：`biz=product`，`scene=main|detail`
+  - 使用 `qcloud-cos-sts` 签发临时上传凭证
+  - key 规则为 `products/{scene}/{yyyy}/{mm}/{userId}/{uuid}.{ext}`
+- 前端商品表单已从“手填图片 URL”切换为上传组件：
+  - 选择图片后立即压缩并上传
+  - 上传成功后仅把最终 URL 写入 `mainImages` / `detailImages`
+  - 保存商品时若仍有图片上传中，会阻止提交
+- 图片压缩策略已确定：
+  - 优先转 `webp`
+  - 主图：最长边 1600px，目标不超过 400KB
+  - 详情图：最长边 2000px，目标不超过 700KB
+  - 后端最终兜底大小限制由 `COS_UPLOAD_MAX_SIZE_MB` 控制，默认 2MB
+- COS 上传链路已在真实资源上验证通过：
+  - 当前 Bucket：`product-image-1256374350`
+  - 当前 Region：`ap-shanghai`
+  - 当前公共访问域名：`https://product-image-1256374350.cos.ap-shanghai.myqcloud.com`
+  - 图片可成功上传并可直接访问
+- 已新增 COS 相关环境变量模板：
+  - `COS_BUCKET`
+  - `COS_REGION`
+  - `COS_PUBLIC_BASE_URL`
+  - `COS_SECRET_ID`
+  - `COS_SECRET_KEY`
+  - `COS_STS_DURATION_SECONDS`
+  - `COS_UPLOAD_MAX_SIZE_MB`
+- 当前图片访问方式按“公开读 + CDN/公共域名”设计，本期不自动删除旧图。
+- COS 对象 key 路径策略已确认保留：
+  - `products/main/{yyyy}/{mm}/{userId}/{uuid}.webp`
+  - `products/detail/{yyyy}/{mm}/{userId}/{uuid}.webp`
+  - 该层级用于按业务、时间、上传人分层，便于排查、审计与后续清理
+- COS 权限问题根因已确认：
+  - `PUT 403 AccessDenied` 不是 CORS 问题
+  - 实际原因是上传密钥账号缺少目标 Bucket 写权限
+  - 补齐 Bucket 写权限后，真实上传恢复正常
+- 腾讯云 MySQL 兼容性问题已确认并修复：
+  - 当前实例不兼容预处理语句中的 `LIMIT ?`
+  - Drizzle/mysql2 默认走 `execute`，会导致大量带 `.limit(...)` 的接口返回 400
+  - 已在 `src/config/database.ts` 中将 `execute` 转接到 `query` 以兼容当前实例
 - 已调整项目记忆更新策略：
   - 仅在改动具备后续复用价值时更新 `PROJECT_MEMORY.md`
   - 统一在一次会话结束后总结写入，不在处理中频繁维护记忆
@@ -97,6 +138,9 @@
 - 前端默认直连该后端（前端已关闭 mock 启动逻辑）。
 - 当前数据库模型以真实 MySQL 为准，商品相关开发统一基于 `products + product_skus + product_brands` 三层结构推进。
 - 订单相关开发统一基于 SKU 维度建模，订单创建、库存预留、发货扣减都以 `product_skus.id` 为准。
+- 资源上传统一按“后端签发临时凭证，前端直传 COS”的模型扩展，不走后端文件中转。
+- 图片压缩统一在前端上传前执行，后端只做授权和大小/MIME 兜底校验。
+- 腾讯云 MySQL 若继续沿用当前实例，查询兼容性要优先考虑预处理语句限制，尤其是 `LIMIT ?`。
 
 ## 已验证接口
 - `GET /health` 返回 `{"success":true,"data":"OK"}`
@@ -113,6 +157,10 @@
   - 该方案默认每个旧商品仅迁出一个默认 SKU，适用于本次由单规格模型升级而来的历史数据。
 - 退款后是否自动回补库存尚未单独建模。
   - 如果未来需要“退款入库 / 退货质检 / 可售返仓”流程，需要再补独立库存状态设计。
+- COS 旧图片当前不会自动回收。
+  - 如后续存储量增长明显，需要补“替换/删除商品后的延迟清理任务”。
+- 当前上传组件已支持多图上传，但未实现前端拖拽排序。
+  - 如后续要求精确控制主图顺序，需要补排序交互与提交顺序同步。
 
 ## 快速验证
 1. 执行 `npm run start`。

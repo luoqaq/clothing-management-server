@@ -8,6 +8,7 @@ import { logger } from './utils/logger';
 
 // 导入路由
 import { createAuthRoutes } from './modules/auth/auth.routes';
+import { createAssetsRoutes } from './modules/assets/assets.routes';
 import { createProductsRoutes } from './modules/products/products.routes';
 import { createOrdersRoutes } from './modules/orders/orders.routes';
 import { createStatisticsRoutes } from './modules/statistics/statistics.routes';
@@ -33,6 +34,7 @@ async function initializeApp() {
 
   // 注册路由
   app.route('/api/auth', createAuthRoutes(db));
+  app.route('/api/assets', createAssetsRoutes());
   app.route('/api/products', createProductsRoutes(db));
   app.route('/api/orders', createOrdersRoutes(db));
   app.route('/api/statistics', createStatisticsRoutes(db));

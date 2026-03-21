@@ -32,6 +32,11 @@ export async function connectToDatabase() {
       password: config.password,
       database: config.database,
     });
+
+    // Tencent Cloud MySQL rejects prepared statements with `limit ?`.
+    // Drizzle's mysql2 adapter uses `execute`, so route it through `query`
+    // for compatibility with the current database instance.
+    (connection as any).execute = connection.query.bind(connection);
   }
   return drizzle(connection, { schema, mode: 'default' });
 }
