@@ -3,14 +3,14 @@ import { OrdersService } from './orders.service';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import * as schema from '../../db/schema';
 import {
-  orderSchema,
-  updateStatusSchema,
-  shipOrderSchema,
   cancelOrderSchema,
-  refundOrderSchema,
   orderFiltersSchema,
+  orderSchema,
+  refundOrderSchema,
+  shipOrderSchema,
+  updateStatusSchema,
 } from './orders.schema';
-import { success, successPaginated, error } from '../../utils/response';
+import { error, success, successPaginated } from '../../utils/response';
 import { logger } from '../../utils/logger';
 
 export class OrdersController {
@@ -24,12 +24,11 @@ export class OrdersController {
     try {
       const query = c.req.query();
       const validQuery = orderFiltersSchema.parse(query);
-
       const { search, status, paymentStatus, startDate, endDate, page, pageSize } = validQuery;
 
       const result = await this.service.getOrders({
-        page: page ? parseInt(page) : 1,
-        pageSize: pageSize ? parseInt(pageSize) : 20,
+        page: page ? parseInt(page, 10) : 1,
+        pageSize: pageSize ? parseInt(pageSize, 10) : 20,
         filters: {
           search,
           status: status as any,
@@ -39,12 +38,14 @@ export class OrdersController {
         },
       });
 
-      return c.json(successPaginated(
-        result.items,
-        result.total,
-        page ? parseInt(page) : 1,
-        pageSize ? parseInt(pageSize) : 20
-      ));
+      return c.json(
+        successPaginated(
+          result.items,
+          result.total,
+          page ? parseInt(page, 10) : 1,
+          pageSize ? parseInt(pageSize, 10) : 20
+        )
+      );
     } catch (err: any) {
       logger.error('Get orders error:', err);
       return c.json(error(err.message), 400);
@@ -53,7 +54,7 @@ export class OrdersController {
 
   async getOrder(c: Context) {
     try {
-      const id = parseInt(c.req.param('id') || '0');
+      const id = parseInt(c.req.param('id') || '0', 10);
       const order = await this.service.getOrder(id);
 
       if (!order) {
@@ -82,7 +83,7 @@ export class OrdersController {
 
   async updateOrderStatus(c: Context) {
     try {
-      const id = parseInt(c.req.param('id') || '0');
+      const id = parseInt(c.req.param('id') || '0', 10);
       const data = await c.req.json();
       updateStatusSchema.parse(data);
 
@@ -100,7 +101,7 @@ export class OrdersController {
 
   async shipOrder(c: Context) {
     try {
-      const id = parseInt(c.req.param('id') || '0');
+      const id = parseInt(c.req.param('id') || '0', 10);
       const data = await c.req.json();
       shipOrderSchema.parse(data);
 
@@ -118,7 +119,7 @@ export class OrdersController {
 
   async cancelOrder(c: Context) {
     try {
-      const id = parseInt(c.req.param('id') || '0');
+      const id = parseInt(c.req.param('id') || '0', 10);
       const data = await c.req.json();
       cancelOrderSchema.parse(data);
 
@@ -136,7 +137,7 @@ export class OrdersController {
 
   async refundOrder(c: Context) {
     try {
-      const id = parseInt(c.req.param('id') || '0');
+      const id = parseInt(c.req.param('id') || '0', 10);
       const data = await c.req.json();
       refundOrderSchema.parse(data);
 
@@ -154,7 +155,6 @@ export class OrdersController {
 
   async exportOrders(c: Context) {
     try {
-      const query = c.req.query();
       return c.json(success(null, '导出功能待实现'));
     } catch (err: any) {
       logger.error('Export orders error:', err);

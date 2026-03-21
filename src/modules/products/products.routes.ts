@@ -15,11 +15,15 @@ export function createProductsRoutes(db: MySql2Database<typeof schema>) {
   products.post('/categories', (c) => controller.createCategory(c));
   products.put('/categories/:id', (c) => controller.updateCategory(c));
   products.delete('/categories/:id', (c) => controller.deleteCategory(c));
+  products.get('/brands', (c) => controller.getBrands(c));
+  products.post('/brands', (c) => controller.createBrand(c));
+  products.put('/brands/:id', (c) => controller.updateBrand(c));
+  products.delete('/brands/:id', (c) => controller.deleteBrand(c));
+  products.patch('/specifications/:id/stock', (c) => controller.updateSpecificationStock(c));
   products.get('/:id', (c) => controller.getProduct(c));
   products.post('/', (c) => controller.createProduct(c));
   products.put('/:id', (c) => controller.updateProduct(c));
   products.delete('/:id', (c) => controller.deleteProduct(c));
-  products.patch('/:id/stock', (c) => controller.updateStock(c));
 
   return products;
 }

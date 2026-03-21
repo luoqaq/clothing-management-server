@@ -132,6 +132,9 @@ export class StatisticsService {
         productId: schema.orderItems.productId,
         productName: schema.orderItems.productName,
         image: schema.orderItems.image,
+        skuCode: schema.orderItems.skuCode,
+        color: schema.orderItems.color,
+        size: schema.orderItems.size,
         price: schema.orderItems.price,
         quantity: schema.orderItems.quantity,
       })
@@ -153,7 +156,8 @@ export class StatisticsService {
         rankings[item.productId] = {
           productId: item.productId,
           productName: item.productName,
-          sku: `SKU-${item.productId}`,
+          skuCode: item.skuCode,
+          specification: [item.color, item.size].filter(Boolean).join(' / '),
           image: item.image,
           quantity: 0,
           revenue: 0,

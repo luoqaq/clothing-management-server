@@ -1,4 +1,14 @@
-import { mysqlTable, serial, varchar, text, decimal, int, datetime, mysqlEnum, json } from 'drizzle-orm/mysql-core';
+import {
+  mysqlTable,
+  serial,
+  varchar,
+  text,
+  decimal,
+  int,
+  datetime,
+  mysqlEnum,
+  json,
+} from 'drizzle-orm/mysql-core';
 import { sql } from 'drizzle-orm';
 
 export const orders = mysqlTable('orders', {
@@ -10,11 +20,17 @@ export const orders = mysqlTable('orders', {
   totalAmount: decimal('total_amount', { precision: 10, scale: 2 }).notNull(),
   discountAmount: decimal('discount_amount', { precision: 10, scale: 2 }).default('0'),
   finalAmount: decimal('final_amount', { precision: 10, scale: 2 }).notNull(),
-  status: mysqlEnum('status', ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled', 'refunded']).default('pending'),
+  status: mysqlEnum('status', ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled', 'refunded'])
+    .default('pending')
+    .notNull(),
   address: json('address').notNull(),
   note: text('note'),
   paymentMethod: varchar('payment_method', { length: 50 }),
-  paymentStatus: mysqlEnum('payment_status', ['unpaid', 'paid', 'refunded']).default('unpaid'),
+  paymentStatus: mysqlEnum('payment_status', ['unpaid', 'paid', 'refunded']).default('unpaid').notNull(),
+  shippingCompany: varchar('shipping_company', { length: 100 }),
+  trackingNumber: varchar('tracking_number', { length: 100 }),
+  cancelReason: varchar('cancel_reason', { length: 255 }),
+  refundReason: varchar('refund_reason', { length: 255 }),
   shippedAt: datetime('shipped_at'),
   deliveredAt: datetime('delivered_at'),
   createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -25,11 +41,14 @@ export const orderItems = mysqlTable('order_items', {
   id: serial('id').primaryKey(),
   orderId: int('order_id').notNull(),
   productId: int('product_id').notNull(),
+  skuId: int('sku_id').notNull(),
   productName: varchar('product_name', { length: 200 }).notNull(),
+  skuCode: varchar('sku_code', { length: 100 }).notNull(),
   image: varchar('image', { length: 500 }),
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
   quantity: int('quantity').notNull(),
-  size: mysqlEnum('size', ['S', 'M', 'L', 'XL', 'XXL']),
+  color: varchar('color', { length: 50 }),
+  size: varchar('size', { length: 50 }),
 });
 
 export type Order = typeof orders.$inferSelect;

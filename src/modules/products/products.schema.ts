@@ -1,16 +1,27 @@
 import { z } from 'zod';
 
+const specificationSchema = z.object({
+  skuCode: z.string().min(1, '规格编码不能为空'),
+  barcode: z.string().optional(),
+  color: z.string().min(1, '颜色不能为空'),
+  size: z.string().min(1, '尺码不能为空'),
+  salePrice: z.number().min(0, '售价不能为负数'),
+  costPrice: z.number().min(0, '成本价不能为负数'),
+  stock: z.number().int().min(0, '库存不能为负数'),
+  reservedStock: z.number().int().min(0).optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+});
+
 export const productSchema = z.object({
   name: z.string().min(1, '商品名称不能为空'),
   description: z.string().optional(),
   categoryId: z.number().min(1, '分类不能为空'),
-  price: z.number().min(0, '价格不能为负数'),
-  costPrice: z.number().min(0, '成本价不能为负数'),
-  stock: z.number().int().min(0, '库存不能为负数'),
-  images: z.array(z.string()).optional(),
-  size: z.enum(['S', 'M', 'L', 'XL', 'XXL']).optional(),
-  status: z.enum(['active', 'inactive', 'out_of_stock']).optional(),
+  brandId: z.number().optional().nullable(),
+  mainImages: z.array(z.string()).optional(),
+  detailImages: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
+  status: z.enum(['draft', 'active', 'inactive']).optional(),
+  specifications: z.array(specificationSchema).min(1, '至少需要一个规格'),
 });
 
 export const categorySchema = z.object({
@@ -19,7 +30,10 @@ export const categorySchema = z.object({
   parentId: z.number().optional().nullable(),
 });
 
-
+export const brandSchema = z.object({
+  name: z.string().min(1, '品牌名称不能为空'),
+  logo: z.string().optional(),
+});
 
 export const updateStockSchema = z.object({
   stock: z.number().int().min(0, '库存不能为负数'),
@@ -28,6 +42,7 @@ export const updateStockSchema = z.object({
 export const productFiltersSchema = z.object({
   search: z.string().optional(),
   categoryId: z.string().optional(),
+  brandId: z.string().optional(),
   status: z.string().optional(),
   minPrice: z.string().optional(),
   maxPrice: z.string().optional(),

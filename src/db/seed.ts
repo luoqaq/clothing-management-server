@@ -54,17 +54,24 @@ async function seed() {
 
   console.log('✓ 创建商品分类');
 
+  await dbAny.insert(schema.productBrands).values([
+    { name: 'Nike', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=nike' },
+    { name: 'Adidas', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=adidas' },
+    { name: 'Zara', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=zara' },
+    { name: 'Uniqlo', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=uniqlo' },
+  ]);
+
+  console.log('✓ 创建商品品牌');
+
   // 创建示例商品
-  await dbAny.insert(schema.products).values([
+  const productIds = await dbAny.insert(schema.products).values([
     {
       name: '经典白色T恤',
       description: '简约百搭的白色T恤，舒适透气，适合日常穿着',
       categoryId: 8,
-      price: 99,
-      costPrice: 50,
-      stock: 200,
-      images: ['https://api.dicebear.com/7.x/avataaars/svg?seed=1'],
-      size: 'M',
+      brandId: 4,
+      mainImages: ['https://api.dicebear.com/7.x/avataaars/svg?seed=1'],
+      detailImages: ['https://api.dicebear.com/7.x/avataaars/svg?seed=1'],
       status: 'active',
       tags: ['经典', '百搭', '舒适'],
     },
@@ -72,17 +79,42 @@ async function seed() {
       name: '牛仔外套',
       description: '时尚牛仔外套，复古风格，四季皆宜',
       categoryId: 2,
-      price: 399,
-      costPrice: 150,
-      stock: 150,
-      images: ['https://api.dicebear.com/7.x/avataaars/svg?seed=2'],
-      size: 'L',
+      brandId: 1,
+      mainImages: ['https://api.dicebear.com/7.x/avataaars/svg?seed=2'],
+      detailImages: ['https://api.dicebear.com/7.x/avataaars/svg?seed=2'],
       status: 'active',
       tags: ['牛仔', '时尚', '百搭'],
     },
-  ]);
+  ]).$returningId();
 
   console.log('✓ 创建示例商品');
+
+  await dbAny.insert(schema.productSkus).values([
+    {
+      productId: productIds[0].id,
+      skuCode: 'TOP001-WHITE-M',
+      color: '白色',
+      size: 'M',
+      salePrice: '99.00',
+      costPrice: '50.00',
+      stock: 200,
+      reservedStock: 0,
+      status: 'active',
+    },
+    {
+      productId: productIds[1].id,
+      skuCode: 'OUTER001-BLUE-L',
+      color: '蓝色',
+      size: 'L',
+      salePrice: '399.00',
+      costPrice: '150.00',
+      stock: 150,
+      reservedStock: 0,
+      status: 'active',
+    },
+  ]);
+
+  console.log('✓ 创建示例商品规格');
 
   await connection.end();
   console.log('数据初始化完成!');

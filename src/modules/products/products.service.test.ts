@@ -27,6 +27,13 @@ function createProductsDbMock(products: Product[]) {
             };
           }
 
+          if (table === schema.productCategories || table === schema.productBrands || table === schema.productSkus) {
+            return {
+              where: async () => [],
+              orderBy: async () => [],
+            };
+          }
+
           return {
             where: async () => [],
           };
@@ -44,11 +51,18 @@ describe('ProductsService.getProducts', () => {
         name: 'T-Shirt A',
         description: 'A',
         categoryId: 1,
-        price: 99,
-        costPrice: 50,
-        stock: 10,
-        images: [],
-        size: 'M',
+        brandId: null,
+        category: undefined,
+        brand: null,
+        mainImages: [],
+        detailImages: [],
+        specifications: [],
+        specCount: 0,
+        totalStock: 0,
+        reservedStock: 0,
+        availableStock: 0,
+        minPrice: 0,
+        maxPrice: 0,
         status: 'active',
         tags: [],
         createdAt: '2026-01-01',
@@ -59,11 +73,18 @@ describe('ProductsService.getProducts', () => {
         name: 'T-Shirt B',
         description: 'B',
         categoryId: 1,
-        price: 129,
-        costPrice: 70,
-        stock: 20,
-        images: [],
-        size: 'L',
+        brandId: null,
+        category: undefined,
+        brand: null,
+        mainImages: [],
+        detailImages: [],
+        specifications: [],
+        specCount: 0,
+        totalStock: 0,
+        reservedStock: 0,
+        availableStock: 0,
+        minPrice: 0,
+        maxPrice: 0,
         status: 'active',
         tags: [],
         createdAt: '2026-01-02',
@@ -81,4 +102,3 @@ describe('ProductsService.getProducts', () => {
     expect(result.items[0].id).toBe(2);
   });
 });
-

@@ -1,4 +1,3 @@
-// 用户相关类型
 export interface User {
   id: number;
   username: string;
@@ -18,27 +17,58 @@ export interface LoginResponse {
   token: string;
 }
 
-// 商品相关类型
 export interface ProductCategory {
   id: number;
   name: string;
   code: string;
-  parentId?: number;
+  parentId?: number | null;
+}
+
+export interface ProductBrand {
+  id: number;
+  name: string;
+  logo?: string | null;
+}
+
+export type ProductStatus = 'draft' | 'active' | 'inactive';
+export type ProductSpecificationStatus = 'active' | 'inactive';
+
+export interface ProductSpecification {
+  id: number;
+  productId: number;
+  skuCode: string;
+  barcode?: string | null;
+  color: string;
+  size: string;
+  salePrice: number;
+  costPrice: number;
+  stock: number;
+  reservedStock: number;
+  availableStock: number;
+  status: ProductSpecificationStatus;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Product {
   id: number;
   name: string;
-  description: string;
+  description?: string | null;
   categoryId: number;
+  brandId?: number | null;
   category?: ProductCategory;
-  price: number;
-  costPrice: number;
-  stock: number;
-  images: string[];
-  size?: 'S' | 'M' | 'L' | 'XL' | 'XXL';
-  status: 'active' | 'inactive' | 'out_of_stock';
+  brand?: ProductBrand | null;
+  mainImages: string[];
+  detailImages: string[];
   tags: string[];
+  status: ProductStatus;
+  specifications: ProductSpecification[];
+  specCount: number;
+  totalStock: number;
+  reservedStock: number;
+  availableStock: number;
+  minPrice: number;
+  maxPrice: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,24 +76,25 @@ export interface Product {
 export interface ProductFilters {
   search?: string;
   categoryId?: number;
+  brandId?: number;
   status?: string;
   minPrice?: number;
   maxPrice?: number;
 }
 
-// 订单相关类型
 export type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
 
 export interface OrderItem {
   id: number;
   productId: number;
+  skuId: number;
   productName: string;
-  sku: string;
-  image?: string;
+  skuCode: string;
+  image?: string | null;
   price: number;
   quantity: number;
-  color?: string;
-  size?: string;
+  color?: string | null;
+  size?: string | null;
 }
 
 export interface OrderAddress {
@@ -91,6 +122,10 @@ export interface Order {
   note?: string;
   paymentMethod?: string;
   paymentStatus: 'unpaid' | 'paid' | 'refunded';
+  shippingCompany?: string | null;
+  trackingNumber?: string | null;
+  cancelReason?: string | null;
+  refundReason?: string | null;
   shippedAt?: string;
   deliveredAt?: string;
   createdAt: string;
@@ -105,7 +140,6 @@ export interface OrderFilters {
   endDate?: string;
 }
 
-// 统计相关类型
 export interface DailySalesData {
   date: string;
   revenue: number;
@@ -116,8 +150,9 @@ export interface DailySalesData {
 export interface ProductSalesRanking {
   productId: number;
   productName: string;
-  sku: string;
-  image?: string;
+  skuCode: string;
+  specification: string;
+  image?: string | null;
   quantity: number;
   revenue: number;
 }
