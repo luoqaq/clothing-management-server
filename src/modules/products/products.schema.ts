@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const specificationSchema = z.object({
   skuCode: z.string().min(1, '规格编码不能为空'),
-  barcode: z.string().optional(),
+  barcode: z.string().optional().nullable(),
   color: z.string().min(1, '颜色不能为空'),
   size: z.string().min(1, '尺码不能为空'),
   salePrice: z.number().min(0, '售价不能为负数'),
