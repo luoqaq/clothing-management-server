@@ -30,6 +30,7 @@ export const productBrands = mysqlTable('product_brands', {
 
 export const products = mysqlTable('products', {
   id: serial('id').primaryKey(),
+  productCode: varchar('product_code', { length: 100 }).notNull().unique(),
   name: varchar('name', { length: 200 }).notNull(),
   description: text('description'),
   categoryId: int('category_id').notNull(),

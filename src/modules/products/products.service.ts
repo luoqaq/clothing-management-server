@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, like, lte } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, like, lte, or } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type {
   Product,
@@ -25,6 +25,10 @@ type ProductPayload = Omit<
 
 export class ProductsService {
   constructor(private db: any) {}
+
+  private buildSkuCode(productCode: string, size: string, color: string): string {
+    return [productCode, size, color].map((item) => String(item ?? '').trim()).join('-');
+  }
 
   private normalizeSpecification(row: any): ProductSpecification {
     const stock = Number(row.stock ?? 0);
@@ -56,6 +60,7 @@ export class ProductsService {
 
     return {
       id: Number(productRow.id),
+      productCode: productRow.productCode,
       name: productRow.name,
       description: productRow.description ?? '',
       categoryId: Number(productRow.categoryId),
@@ -113,7 +118,9 @@ export class ProductsService {
     const whereConditions: any[] = [];
 
     if (search) {
-      whereConditions.push(like(schema.products.name, `%${search}%`));
+      whereConditions.push(
+        or(like(schema.products.name, `%${search}%`), like(schema.products.productCode, `%${search}%`))
+      );
     }
 
     if (categoryId) {
@@ -169,6 +176,7 @@ export class ProductsService {
     const result = await this.db
       .insert(schema.products)
       .values({
+        productCode: data.productCode,
         name: data.name,
         description: data.description,
         categoryId: data.categoryId,
@@ -188,7 +196,7 @@ export class ProductsService {
     await this.db.insert(schema.productSkus).values(
       data.specifications.map((item) => ({
         productId: insertedId,
-        skuCode: item.skuCode,
+        skuCode: this.buildSkuCode(data.productCode, item.size, item.color),
         barcode: item.barcode ?? null,
         color: item.color,
         size: item.size,
@@ -215,6 +223,7 @@ export class ProductsService {
     }
 
     const productUpdates: Record<string, unknown> = {};
+    if (data.productCode !== undefined) productUpdates.productCode = data.productCode;
     if (data.name !== undefined) productUpdates.name = data.name;
     if (data.description !== undefined) productUpdates.description = data.description;
     if (data.categoryId !== undefined) productUpdates.categoryId = data.categoryId;
@@ -228,12 +237,15 @@ export class ProductsService {
       await this.db.update(schema.products).set(productUpdates).where(eq(schema.products.id, id));
     }
 
-    if (data.specifications) {
+    const nextProductCode = data.productCode ?? existing.productCode;
+    const specificationsToPersist = data.specifications ?? existing.specifications;
+
+    if (data.specifications || data.productCode !== undefined) {
       await this.db.delete(schema.productSkus).where(eq(schema.productSkus.productId, id));
       await this.db.insert(schema.productSkus).values(
-        data.specifications.map((item) => ({
+        specificationsToPersist.map((item) => ({
           productId: id,
-          skuCode: item.skuCode,
+          skuCode: this.buildSkuCode(nextProductCode, item.size, item.color),
           barcode: item.barcode ?? null,
           color: item.color,
           size: item.size,

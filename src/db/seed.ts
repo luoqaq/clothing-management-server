@@ -66,6 +66,7 @@ async function seed() {
   // 创建示例商品
   const productIds = await dbAny.insert(schema.products).values([
     {
+      productCode: 'TOP001',
       name: '经典白色T恤',
       description: '简约百搭的白色T恤，舒适透气，适合日常穿着',
       categoryId: 8,
@@ -76,6 +77,7 @@ async function seed() {
       tags: ['经典', '百搭', '舒适'],
     },
     {
+      productCode: 'OUTER001',
       name: '牛仔外套',
       description: '时尚牛仔外套，复古风格，四季皆宜',
       categoryId: 2,
@@ -92,7 +94,7 @@ async function seed() {
   await dbAny.insert(schema.productSkus).values([
     {
       productId: productIds[0].id,
-      skuCode: 'TOP001-WHITE-M',
+      skuCode: 'TOP001-M-白色',
       color: '白色',
       size: 'M',
       salePrice: '99.00',
@@ -103,7 +105,7 @@ async function seed() {
     },
     {
       productId: productIds[1].id,
-      skuCode: 'OUTER001-BLUE-L',
+      skuCode: 'OUTER001-L-蓝色',
       color: '蓝色',
       size: 'L',
       salePrice: '399.00',

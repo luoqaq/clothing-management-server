@@ -48,6 +48,7 @@ describe('ProductsService.getProducts', () => {
     const products: Product[] = [
       {
         id: 1,
+        productCode: 'KH001',
         name: 'T-Shirt A',
         description: 'A',
         categoryId: 1,
@@ -70,6 +71,7 @@ describe('ProductsService.getProducts', () => {
       },
       {
         id: 2,
+        productCode: 'KH002',
         name: 'T-Shirt B',
         description: 'B',
         categoryId: 1,
