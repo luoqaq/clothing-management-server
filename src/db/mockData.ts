@@ -22,10 +22,9 @@ export interface ProductCategory {
   updatedAt: Date;
 }
 
-export interface ProductBrand {
+export interface Supplier {
   id: number;
   name: string;
-  logo?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,7 +35,7 @@ export interface Product {
   description?: string;
   sku: string;
   categoryId: number;
-  brandId: number;
+  supplierId?: number | null;
   price: number;
   costPrice: number;
   stock: number;
@@ -86,7 +85,7 @@ export interface Order {
 let nextId = {
   users: 1,
   categories: 1,
-  brands: 1,
+  suppliers: 1,
   products: 1,
   orders: 1,
   orderItems: 1,
@@ -95,7 +94,7 @@ let nextId = {
 export const mockData = {
   users: [] as User[],
   categories: [] as ProductCategory[],
-  brands: [] as ProductBrand[],
+  suppliers: [] as Supplier[],
   products: [] as Product[],
   orders: [] as Order[],
   orderItems: [] as OrderItem[],
@@ -135,17 +134,17 @@ export const mockData = {
       });
     });
 
-    // 创建品牌
-    const brands = [
-      { name: 'Nike', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=nike' },
-      { name: 'Adidas', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=adidas' },
-      { name: 'Zara', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=zara' },
-      { name: 'Uniqlo', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=uniqlo' },
+    // 创建供应商
+    const suppliers = [
+      { name: '华东成衣供应商' },
+      { name: '深圳针织供应商' },
+      { name: '广州牛仔供应商' },
+      { name: '上海基础款供应商' },
     ];
-    brands.forEach(brand => {
-      this.brands.push({
-        id: nextId.brands++,
-        ...brand,
+    suppliers.forEach((supplier) => {
+      this.suppliers.push({
+        id: nextId.suppliers++,
+        ...supplier,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -158,7 +157,7 @@ export const mockData = {
         description: '简约百搭的白色T恤，舒适透气，适合日常穿着',
         sku: 'TOP001',
         categoryId: 1,
-        brandId: 4,
+        supplierId: 4,
         price: 99,
         costPrice: 50,
         stock: 200,
@@ -173,7 +172,7 @@ export const mockData = {
         description: '时尚牛仔外套，复古风格，四季皆宜',
         sku: 'OUTER001',
         categoryId: 2,
-        brandId: 1,
+        supplierId: 1,
         price: 399,
         costPrice: 150,
         stock: 150,

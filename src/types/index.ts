@@ -24,10 +24,9 @@ export interface ProductCategory {
   parentId?: number | null;
 }
 
-export interface ProductBrand {
+export interface Supplier {
   id: number;
   name: string;
-  logo?: string | null;
 }
 
 export type ProductStatus = 'draft' | 'active' | 'inactive';
@@ -56,9 +55,9 @@ export interface Product {
   name: string;
   description?: string | null;
   categoryId: number;
-  brandId?: number | null;
+  supplierId?: number | null;
   category?: ProductCategory;
-  brand?: ProductBrand | null;
+  supplier?: Supplier | null;
   mainImages: string[];
   detailImages: string[];
   tags: string[];
@@ -77,13 +76,14 @@ export interface Product {
 export interface ProductFilters {
   search?: string;
   categoryId?: number;
-  brandId?: number;
+  supplierId?: number;
   status?: string;
   minPrice?: number;
   maxPrice?: number;
 }
 
 export type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
+export type OrderSource = 'admin_web' | 'staff_miniapp';
 
 export interface OrderItem {
   id: number;
@@ -111,6 +111,7 @@ export interface OrderAddress {
 export interface Order {
   id: number;
   orderNo: string;
+  source: OrderSource;
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
@@ -137,6 +138,7 @@ export interface OrderFilters {
   search?: string;
   status?: OrderStatus;
   paymentStatus?: string;
+  source?: OrderSource;
   startDate?: string;
   endDate?: string;
 }

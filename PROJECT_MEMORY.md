@@ -1,6 +1,75 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-03-21
+最近更新：2026-03-27
+
+## 会话更新（2026-03-27）
+- 商品主数据已从“品牌”切换为“供应商”：
+  - 新增 `suppliers` 表（`id`、`name`、时间字段）
+  - `products` 已改为使用可空 `supplier_id`
+  - 本次仅完成模型与接口切换，未对历史商品执行供应商回填
+- 商品相关后端接口已同步切换：
+  - `GET/POST/PUT/DELETE /api/products/suppliers`
+  - 商品列表筛选参数由 `brandId` 改为 `supplierId`
+  - 商品详情返回 `supplier`
+  - `/api/mobile/product-options` 返回 `suppliers`
+- 已新增迁移脚本：`drizzle/0002_product_suppliers.sql`
+- 已同步修正 `seed`、mock 数据与商品单测，保留移动端图片更新能力与 JSON 字段兼容逻辑。
+- 本次验证已执行：
+  - `bun run build` 通过
+  - `bun test` 通过
+- 注意：由于当前 `.env` 默认连接真实 MySQL，本次未直接执行 `bun run db:migrate`，避免未经确认修改真实库。
+
+## 会话更新（2026-03-23）
+- 已新增 ToB 店铺运营小程序后端打通能力，供 `clothing-management-staff-miniapp` 使用。
+- 已新增 `/api/mobile` 路由组，覆盖：
+  - `POST /auth/login`
+  - `GET /auth/me`
+  - `POST /auth/logout`
+  - `GET /dashboard/summary`
+  - `GET /products`
+  - `GET /products/:id`
+  - `GET /product-options`
+  - `POST /products`
+  - `PATCH /products/:id/images`
+  - `GET /orders`
+  - `GET /orders/:id`
+  - `POST /orders`
+  - `PATCH /orders/:id/status`
+  - `POST /orders/:id/ship`
+  - `POST /orders/:id/cancel`
+- 订单已新增来源字段 `source`，当前来源枚举为：
+  - `admin_web`
+  - `staff_miniapp`
+- 已新增迁移脚本：`drizzle/0001_staff_miniapp_source.sql`
+- 商品服务已新增独立图片更新能力：
+  - `updateProductImages`
+  - 用于小程序补传主图/详情图时避免整单重提
+- 已新增角色中间件 `src/middleware/role.middleware.ts`
+  - 当前 `manager/admin` 才能通过移动端创建商品或更新商品图片
+- 后端验证结果：
+  - `bun run build` 通过
+  - `bun test` 通过
+  - `bun run db:migrate` 已执行成功
+  - 本地服务已成功启动并验证以下接口：
+    - `GET /health`
+    - `POST /api/mobile/auth/login`
+    - `GET /api/mobile/products`
+    - `GET /api/mobile/product-options`
+    - `POST /api/mobile/products`
+    - `POST /api/mobile/orders`
+    - `POST /api/mobile/orders/:id/cancel`
+    - `POST /api/assets/upload-policy`
+  - 为联调已创建 1 条测试商品：
+    - `productCode=MINIAPP-TEST-001`
+  - 为联调已创建并取消 1 条测试订单：
+    - 来源 `staff_miniapp`
+    - 取消原因为“联调清理测试订单”
+  - 已修复商品 JSON 字段兼容性问题：
+    - `main_images`
+    - `detail_images`
+    - `tags`
+  - 根因是当前 MySQL 返回 JSON 字段时可能为字符串，旧逻辑仅接受数组，导致移动端更新图片后再次读取会丢失。
+  - 现已在 `src/modules/products/products.service.ts` 中统一补充 JSON 字符串解析，复测 `/api/mobile/products/:id/images` 与 `/api/mobile/products/:id` 均正常。
 
 ## 会话更新（2026-03-21）
 - 已新增商品图片上传能力，采用“前端压缩后直传腾讯云 COS + 后端签发临时上传凭证”的方案。
@@ -60,57 +129,6 @@
   - 新增 `product_skus` 初始化数据
 - 已修复与新商品模型不一致的测试桩，当前类型检查、单测、构建均通过。
 
-## 功能方案设计更新（2026-03-21）
-- 商品模型从“单商品单规格”升级为“SPU + SKU”结构：
-  - `products` 负责商品基础信息：名称、描述、分类、品牌、主图、详情图、标签、状态。
-  - `product_skus` 负责可售规格：`skuCode`、条码、颜色、尺码、售价、成本价、库存、预留库存、状态。
-  - 商品列表/详情接口返回聚合结果，而不是直接暴露单表结构。
-- 商品状态方案已调整：
-  - 旧状态 `out_of_stock` 不再保留。
-  - 新状态统一为 `draft | active | inactive`。
-  - 是否可售主要由 SKU 状态和可用库存共同决定，不再由商品表单独承载库存语义。
-- 品牌能力已正式纳入模型：
-  - 新增 `product_brands` 表。
-  - `products.brand_id` 可为空，表示商品允许暂无品牌。
-- 订单模型已与 SKU 对齐：
-  - `order_items` 新增 `sku_id`、`sku_code`、`color`，`size` 改为普通字符串。
-  - 下单时以 `skuId + quantity` 作为核心输入，而不是直接传商品价格/规格文本。
-  - 订单项保留下单快照，避免商品后续修改影响历史订单展示。
-- 库存流转方案已确定：
-  - 创建订单时预留 SKU 库存，写入 `reserved_stock`。
-  - 取消订单时释放预留库存。
-  - 发货时从库存中正式扣减，并同步减少预留库存。
-  - 退款目前以订单状态流转为主，未额外实现自动回补库存逻辑，后续如需逆向入库需单独设计。
-- 订单履约字段已补齐：
-  - `orders` 新增 `shipping_company`、`tracking_number`、`cancel_reason`、`refund_reason`。
-  - 发货、取消、退款接口应优先使用这些字段，不再依赖前端临时拼装文案。
-- 统计口径已同步更新到 SKU 维度：
-  - 商品销售排行使用 `skuCode` 与 `color/size` 组合展示规格。
-  - 统计结果中的规格展示字段不再使用旧的单一 `sku` 占位值。
-
-## 迁移方案说明（2026-03-21）
-- 当前仓库此前没有可承接旧结构的 `drizzle/` 历史目录。
-- 因此本次采用“手写增量 SQL + 生成 Drizzle 元数据”的方案，而不是直接依赖自动 diff：
-  - 先用 `drizzle-kit generate` 生成目录结构与元数据。
-  - 再将生成的全量建表 SQL 改写为针对旧表结构的增量迁移 SQL。
-- 迁移脚本会执行以下关键数据回填：
-  - 旧 `products.images` 回填到 `main_images` 与 `detail_images`
-  - 旧 `products.price/cost_price/stock/size` 回填到默认生成的 `product_skus`
-  - 旧 `order_items` 根据 `product_id` 回填 `sku_id/sku_code/color/size`
-  - 旧商品状态 `out_of_stock` 映射为新状态 `inactive`
-- 后续如果继续扩展 SKU 维度，不要再回退到商品表直接维护价格和库存。
-
-## 会话更新（2026-03-20）
-- 已将 `AGENTS.md` 与 `PROJECT_MEMORY.md` 统一为中文版本，保留命令与路径原文。
-- 已新增仓库级 `AGENTS.md`，并要求固定流程：
-  - 会话开始先读 `PROJECT_MEMORY.md`
-  - 会话结束前更新 `PROJECT_MEMORY.md`
-- 已在 `AGENTS.md` 增加后端专项规则：
-  - 默认连接真实数据库，除非用户明确要求否则不启用 mock DB
-  - 固定运行/构建/健康检查命令与验证要求
-  - 安全规则：后端 `.env` 严禁提交
-  - 变更边界、Git 规则与收尾模板
-
 ## 仓库信息
 - 路径：`/Users/luo/Project/clothing-management-server`
 - 远程：`git@github.com:luoqaq/clothing-management-server.git`
@@ -136,7 +154,7 @@
 - `src/index.ts` 采用显式 `Bun.serve({ port, fetch: app.fetch })` 启动。
   - 该调整用于避免此前出现的 Bun 自动 serve 端口冲突问题。
 - 前端默认直连该后端（前端已关闭 mock 启动逻辑）。
-- 当前数据库模型以真实 MySQL 为准，商品相关开发统一基于 `products + product_skus + product_brands` 三层结构推进。
+- 当前数据库模型以真实 MySQL 为准，商品相关开发统一基于 `products + product_skus + suppliers` 三层结构推进。
 - 订单相关开发统一基于 SKU 维度建模，订单创建、库存预留、发货扣减都以 `product_skus.id` 为准。
 - 资源上传统一按“后端签发临时凭证，前端直传 COS”的模型扩展，不走后端文件中转。
 - 图片压缩统一在前端上传前执行，后端只做授权和大小/MIME 兜底校验。
@@ -145,10 +163,6 @@
 ## 已验证接口
 - `GET /health` 返回 `{"success":true,"data":"OK"}`
 - `POST /api/auth/login` 使用 `admin / admin123` 可登录
-
-## 数据说明（2026-03-20）
-- 在当前配置数据库中，`products` 表查询到 2 条数据。
-- 如果页面与数据库客户端看到的数据不一致，优先核对 host/port/database 是否一致。
 
 ## 已知问题与风险
 - MySQL `DECIMAL` 字段默认返回字符串。
@@ -161,10 +175,3 @@
   - 如后续存储量增长明显，需要补“替换/删除商品后的延迟清理任务”。
 - 当前上传组件已支持多图上传，但未实现前端拖拽排序。
   - 如后续要求精确控制主图顺序，需要补排序交互与提交顺序同步。
-
-## 快速验证
-1. 执行 `npm run start`。
-2. 执行 `curl http://127.0.0.1:3000/health`。
-3. 用 `admin / admin123` 测试登录接口。
-4. 确认前端可通过代理读取 `/api/products`。
-5. 如需验证数据库迁移状态，执行 `bun run db:migrate`，确认无待执行迁移。

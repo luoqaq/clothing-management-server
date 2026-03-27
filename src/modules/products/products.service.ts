@@ -1,18 +1,18 @@
-import { and, count, desc, eq, gte, inArray, like, lte, or } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, like, or } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type {
   Product,
-  ProductBrand,
   ProductCategory,
   ProductFilters,
   ProductSpecification,
+  Supplier,
 } from '../../types';
 
 type ProductPayload = Omit<
   Product,
   | 'id'
   | 'category'
-  | 'brand'
+  | 'supplier'
   | 'specCount'
   | 'totalStock'
   | 'reservedStock'
@@ -25,6 +25,23 @@ type ProductPayload = Omit<
 
 export class ProductsService {
   constructor(private db: any) {}
+
+  private normalizeJsonStringArray(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item));
+    }
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  }
 
   private buildSkuCode(productCode: string, size: string, color: string): string {
     return [productCode, size, color].map((item) => String(item ?? '').trim()).join('-');
@@ -52,7 +69,12 @@ export class ProductsService {
     };
   }
 
-  private buildProduct(productRow: any, categories: ProductCategory[], brands: ProductBrand[], specificationRows: any[]): Product {
+  private buildProduct(
+    productRow: any,
+    categories: ProductCategory[],
+    suppliers: Supplier[],
+    specificationRows: any[]
+  ): Product {
     const specifications = specificationRows.map((item) => this.normalizeSpecification(item));
     const prices = specifications.map((item) => item.salePrice);
     const totalStock = specifications.reduce((sum, item) => sum + item.stock, 0);
@@ -64,12 +86,12 @@ export class ProductsService {
       name: productRow.name,
       description: productRow.description ?? '',
       categoryId: Number(productRow.categoryId),
-      brandId: productRow.brandId ? Number(productRow.brandId) : null,
+      supplierId: productRow.supplierId ? Number(productRow.supplierId) : null,
       category: categories.find((item) => item.id === Number(productRow.categoryId)),
-      brand: brands.find((item) => item.id === Number(productRow.brandId)) ?? null,
-      mainImages: Array.isArray(productRow.mainImages) ? productRow.mainImages : [],
-      detailImages: Array.isArray(productRow.detailImages) ? productRow.detailImages : [],
-      tags: Array.isArray(productRow.tags) ? productRow.tags : [],
+      supplier: suppliers.find((item) => item.id === Number(productRow.supplierId)) ?? null,
+      mainImages: this.normalizeJsonStringArray(productRow.mainImages),
+      detailImages: this.normalizeJsonStringArray(productRow.detailImages),
+      tags: this.normalizeJsonStringArray(productRow.tags),
       status: productRow.status,
       specifications,
       specCount: specifications.length,
@@ -89,9 +111,9 @@ export class ProductsService {
     }
 
     const productIds = productRows.map((item) => Number(item.id));
-    const [categories, brands, specifications] = await Promise.all([
+    const [categories, suppliers, specifications] = await Promise.all([
       this.getCategories(),
-      this.getBrands(),
+      this.getSuppliers(),
       this.db.select().from(schema.productSkus).where(inArray(schema.productSkus.productId, productIds)),
     ]);
 
@@ -99,7 +121,7 @@ export class ProductsService {
       this.buildProduct(
         productRow,
         categories,
-        brands,
+        suppliers,
         specifications.filter((item: any) => Number(item.productId) === Number(productRow.id))
       )
     );
@@ -112,7 +134,7 @@ export class ProductsService {
   }): Promise<{ items: Product[]; total: number }> {
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? 20;
-    const { search, categoryId, brandId, status, minPrice, maxPrice } = params?.filters || {};
+    const { search, categoryId, supplierId, status, minPrice, maxPrice } = params?.filters || {};
     const offset = (page - 1) * pageSize;
 
     const whereConditions: any[] = [];
@@ -127,8 +149,8 @@ export class ProductsService {
       whereConditions.push(eq(schema.products.categoryId, Number(categoryId)));
     }
 
-    if (brandId) {
-      whereConditions.push(eq(schema.products.brandId, Number(brandId)));
+    if (supplierId) {
+      whereConditions.push(eq(schema.products.supplierId, Number(supplierId)));
     }
 
     if (status) {
@@ -180,7 +202,7 @@ export class ProductsService {
         name: data.name,
         description: data.description,
         categoryId: data.categoryId,
-        brandId: data.brandId ?? null,
+        supplierId: data.supplierId ?? null,
         mainImages: data.mainImages ?? [],
         detailImages: data.detailImages ?? [],
         tags: data.tags ?? [],
@@ -216,6 +238,23 @@ export class ProductsService {
     return product;
   }
 
+  async updateProductImages(
+    id: number,
+    images: {
+      mainImages?: string[];
+      detailImages?: string[];
+    }
+  ): Promise<Product | null> {
+    if (images.mainImages === undefined && images.detailImages === undefined) {
+      throw new Error('至少需要更新一组图片');
+    }
+
+    return this.updateProduct(id, {
+      mainImages: images.mainImages,
+      detailImages: images.detailImages,
+    });
+  }
+
   async updateProduct(id: number, data: Partial<ProductPayload>): Promise<Product | null> {
     const existing = await this.getProduct(id);
     if (!existing) {
@@ -227,7 +266,7 @@ export class ProductsService {
     if (data.name !== undefined) productUpdates.name = data.name;
     if (data.description !== undefined) productUpdates.description = data.description;
     if (data.categoryId !== undefined) productUpdates.categoryId = data.categoryId;
-    if (data.brandId !== undefined) productUpdates.brandId = data.brandId;
+    if (data.supplierId !== undefined) productUpdates.supplierId = data.supplierId;
     if (data.mainImages !== undefined) productUpdates.mainImages = data.mainImages;
     if (data.detailImages !== undefined) productUpdates.detailImages = data.detailImages;
     if (data.tags !== undefined) productUpdates.tags = data.tags;
@@ -427,44 +466,32 @@ export class ProductsService {
     return true;
   }
 
-  async getBrands(): Promise<ProductBrand[]> {
-    const rows = await this.db.select().from(schema.productBrands).orderBy(schema.productBrands.name);
-    return rows as ProductBrand[];
+  async getSuppliers(): Promise<Supplier[]> {
+    const rows = await this.db.select().from(schema.suppliers).orderBy(schema.suppliers.name);
+    return rows as Supplier[];
   }
 
-  async createBrand(data: Omit<ProductBrand, 'id'>): Promise<ProductBrand> {
-    const result = await this.db.insert(schema.productBrands).values(data).$returningId();
+  async createSupplier(data: Omit<Supplier, 'id'>): Promise<Supplier> {
+    const result = await this.db.insert(schema.suppliers).values(data).$returningId();
     const insertedId = result[0]?.id;
-    const rows = await this.db
-      .select()
-      .from(schema.productBrands)
-      .where(eq(schema.productBrands.id, insertedId))
-      .limit(1);
-    return rows[0] as ProductBrand;
+    const rows = await this.db.select().from(schema.suppliers).where(eq(schema.suppliers.id, insertedId)).limit(1);
+    return rows[0] as Supplier;
   }
 
-  async updateBrand(id: number, data: Partial<Omit<ProductBrand, 'id'>>): Promise<ProductBrand | null> {
-    await this.db.update(schema.productBrands).set(data).where(eq(schema.productBrands.id, id));
-    const rows = await this.db
-      .select()
-      .from(schema.productBrands)
-      .where(eq(schema.productBrands.id, id))
-      .limit(1);
-    return (rows[0] as ProductBrand | undefined) ?? null;
+  async updateSupplier(id: number, data: Partial<Omit<Supplier, 'id'>>): Promise<Supplier | null> {
+    await this.db.update(schema.suppliers).set(data).where(eq(schema.suppliers.id, id));
+    const rows = await this.db.select().from(schema.suppliers).where(eq(schema.suppliers.id, id)).limit(1);
+    return (rows[0] as Supplier | undefined) ?? null;
   }
 
-  async deleteBrand(id: number): Promise<boolean> {
-    const rows = await this.db
-      .select()
-      .from(schema.productBrands)
-      .where(eq(schema.productBrands.id, id))
-      .limit(1);
+  async deleteSupplier(id: number): Promise<boolean> {
+    const rows = await this.db.select().from(schema.suppliers).where(eq(schema.suppliers.id, id)).limit(1);
 
     if (rows.length === 0) {
       return false;
     }
 
-    await this.db.delete(schema.productBrands).where(eq(schema.productBrands.id, id));
+    await this.db.delete(schema.suppliers).where(eq(schema.suppliers.id, id));
     return true;
   }
 }

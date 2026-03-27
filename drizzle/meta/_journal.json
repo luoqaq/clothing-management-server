@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1774056122146,
+      "tag": "0000_spicy_guardian",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1774320000000,
+      "tag": "0001_staff_miniapp_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774645200000,
+      "tag": "0002_product_suppliers",
+      "breakpoints": true
+    }
+  ]
+}

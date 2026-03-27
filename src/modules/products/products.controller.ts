@@ -3,10 +3,10 @@ import { ProductsService } from './products.service';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import * as schema from '../../db/schema';
 import {
-  brandSchema,
   categorySchema,
   productFiltersSchema,
   productSchema,
+  supplierSchema,
   updateStockSchema,
 } from './products.schema';
 import { error, success, successPaginated } from '../../utils/response';
@@ -23,7 +23,7 @@ export class ProductsController {
     try {
       const query = c.req.query();
       const validQuery = productFiltersSchema.parse(query);
-      const { search, categoryId, brandId, status, minPrice, maxPrice, page, pageSize } = validQuery;
+      const { search, categoryId, supplierId, status, minPrice, maxPrice, page, pageSize } = validQuery;
 
       const result = await this.service.getProducts({
         page: page ? parseInt(page, 10) : 1,
@@ -31,7 +31,7 @@ export class ProductsController {
         filters: {
           search,
           categoryId: categoryId ? parseInt(categoryId, 10) : undefined,
-          brandId: brandId ? parseInt(brandId, 10) : undefined,
+          supplierId: supplierId ? parseInt(supplierId, 10) : undefined,
           status,
           minPrice: minPrice ? parseFloat(minPrice) : undefined,
           maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
@@ -187,57 +187,57 @@ export class ProductsController {
     }
   }
 
-  async getBrands(c: Context) {
+  async getSuppliers(c: Context) {
     try {
-      const brands = await this.service.getBrands();
-      return c.json(success(brands));
+      const suppliers = await this.service.getSuppliers();
+      return c.json(success(suppliers));
     } catch (err: any) {
-      logger.error('Get brands error:', err);
+      logger.error('Get suppliers error:', err);
       return c.json(error(err.message), 400);
     }
   }
 
-  async createBrand(c: Context) {
+  async createSupplier(c: Context) {
     try {
       const data = await c.req.json();
-      brandSchema.parse(data);
-      const brand = await this.service.createBrand(data);
-      return c.json(success(brand), 201);
+      supplierSchema.parse(data);
+      const supplier = await this.service.createSupplier(data);
+      return c.json(success(supplier), 201);
     } catch (err: any) {
-      logger.error('Create brand error:', err);
+      logger.error('Create supplier error:', err);
       return c.json(error(err.message), 400);
     }
   }
 
-  async updateBrand(c: Context) {
+  async updateSupplier(c: Context) {
     try {
       const id = parseInt(c.req.param('id') || '0', 10);
       const data = await c.req.json();
-      brandSchema.partial().parse(data);
+      supplierSchema.partial().parse(data);
 
-      const brand = await this.service.updateBrand(id, data);
-      if (!brand) {
-        return c.json(error('品牌不存在'), 404);
+      const supplier = await this.service.updateSupplier(id, data);
+      if (!supplier) {
+        return c.json(error('供应商不存在'), 404);
       }
 
-      return c.json(success(brand));
+      return c.json(success(supplier));
     } catch (err: any) {
-      logger.error('Update brand error:', err);
+      logger.error('Update supplier error:', err);
       return c.json(error(err.message), 400);
     }
   }
 
-  async deleteBrand(c: Context) {
+  async deleteSupplier(c: Context) {
     try {
       const id = parseInt(c.req.param('id') || '0', 10);
-      const deleted = await this.service.deleteBrand(id);
+      const deleted = await this.service.deleteSupplier(id);
       if (!deleted) {
-        return c.json(error('品牌不存在'), 404);
+        return c.json(error('供应商不存在'), 404);
       }
 
       return c.json(success(null, '删除成功'));
     } catch (err: any) {
-      logger.error('Delete brand error:', err);
+      logger.error('Delete supplier error:', err);
       return c.json(error(err.message), 400);
     }
   }

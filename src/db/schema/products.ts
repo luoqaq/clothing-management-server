@@ -20,10 +20,9 @@ export const productCategories = mysqlTable('product_categories', {
   updatedAt: datetime('updated_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
-export const productBrands = mysqlTable('product_brands', {
+export const suppliers = mysqlTable('suppliers', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
-  logo: varchar('logo', { length: 500 }),
   createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: datetime('updated_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
@@ -34,7 +33,7 @@ export const products = mysqlTable('products', {
   name: varchar('name', { length: 200 }).notNull(),
   description: text('description'),
   categoryId: int('category_id').notNull(),
-  brandId: int('brand_id'),
+  supplierId: int('supplier_id'),
   mainImages: json('main_images'),
   detailImages: json('detail_images'),
   tags: json('tags'),
@@ -62,8 +61,8 @@ export const productSkus = mysqlTable('product_skus', {
 export type ProductCategory = typeof productCategories.$inferSelect;
 export type InsertProductCategory = typeof productCategories.$inferInsert;
 
-export type ProductBrand = typeof productBrands.$inferSelect;
-export type InsertProductBrand = typeof productBrands.$inferInsert;
+export type Supplier = typeof suppliers.$inferSelect;
+export type InsertSupplier = typeof suppliers.$inferInsert;
 
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;

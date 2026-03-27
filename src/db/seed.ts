@@ -54,14 +54,14 @@ async function seed() {
 
   console.log('✓ 创建商品分类');
 
-  await dbAny.insert(schema.productBrands).values([
-    { name: 'Nike', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=nike' },
-    { name: 'Adidas', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=adidas' },
-    { name: 'Zara', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=zara' },
-    { name: 'Uniqlo', logo: 'https://api.dicebear.com/7.x/shapes/svg?seed=uniqlo' },
+  await dbAny.insert(schema.suppliers).values([
+    { name: '华东成衣供应商' },
+    { name: '深圳针织供应商' },
+    { name: '广州牛仔供应商' },
+    { name: '上海基础款供应商' },
   ]);
 
-  console.log('✓ 创建商品品牌');
+  console.log('✓ 创建供应商');
 
   // 创建示例商品
   const productIds = await dbAny.insert(schema.products).values([
@@ -70,7 +70,7 @@ async function seed() {
       name: '经典白色T恤',
       description: '简约百搭的白色T恤，舒适透气，适合日常穿着',
       categoryId: 8,
-      brandId: 4,
+      supplierId: 4,
       mainImages: ['https://api.dicebear.com/7.x/avataaars/svg?seed=1'],
       detailImages: ['https://api.dicebear.com/7.x/avataaars/svg?seed=1'],
       status: 'active',
@@ -81,7 +81,7 @@ async function seed() {
       name: '牛仔外套',
       description: '时尚牛仔外套，复古风格，四季皆宜',
       categoryId: 2,
-      brandId: 1,
+      supplierId: 1,
       mainImages: ['https://api.dicebear.com/7.x/avataaars/svg?seed=2'],
       detailImages: ['https://api.dicebear.com/7.x/avataaars/svg?seed=2'],
       status: 'active',

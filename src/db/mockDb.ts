@@ -13,8 +13,8 @@ export const mockDb = {
           case 'product_categories':
             data = mockData.categories;
             break;
-          case 'product_brands':
-            data = mockData.brands;
+          case 'suppliers':
+            data = mockData.suppliers;
             break;
           case 'products':
             data = mockData.products;
@@ -102,8 +102,8 @@ export const mockDb = {
                       case 'product_categories':
                         mockData.categories.push(item);
                         break;
-                      case 'product_brands':
-                        mockData.brands.push(item);
+                      case 'suppliers':
+                        mockData.suppliers.push(item);
                         break;
                       case 'products':
                         mockData.products.push(item);
@@ -127,8 +127,8 @@ export const mockDb = {
                     case 'product_categories':
                       mockData.categories.push(item);
                       break;
-                    case 'product_brands':
-                      mockData.brands.push(item);
+                    case 'suppliers':
+                      mockData.suppliers.push(item);
                       break;
                     case 'products':
                       mockData.products.push(item);
@@ -180,14 +180,14 @@ export const mockDb = {
                       return cat;
                     });
                     break;
-                  case 'product_brands':
-                    mockData.brands = mockData.brands.map(brand => {
-                      if (condition(brand)) {
-                        const updatedBrand = { ...brand, ...data, updatedAt: new Date() };
-                        updated.push(updatedBrand);
-                        return updatedBrand;
+                  case 'suppliers':
+                    mockData.suppliers = mockData.suppliers.map((supplier) => {
+                      if (condition(supplier)) {
+                        const updatedSupplier = { ...supplier, ...data, updatedAt: new Date() };
+                        updated.push(updatedSupplier);
+                        return updatedSupplier;
                       }
-                      return brand;
+                      return supplier;
                     });
                     break;
                   case 'products':
@@ -245,9 +245,9 @@ export const mockDb = {
                 deleted = mockData.categories.filter(condition);
                 mockData.categories = mockData.categories.filter(item => !condition(item));
                 break;
-              case 'product_brands':
-                deleted = mockData.brands.filter(condition);
-                mockData.brands = mockData.brands.filter(item => !condition(item));
+              case 'suppliers':
+                deleted = mockData.suppliers.filter(condition);
+                mockData.suppliers = mockData.suppliers.filter(item => !condition(item));
                 break;
               case 'products':
                 deleted = mockData.products.filter(condition);

@@ -17,7 +17,7 @@ export const productSchema = z.object({
   name: z.string().min(1, '商品名称不能为空'),
   description: z.string().optional(),
   categoryId: z.number().min(1, '分类不能为空'),
-  brandId: z.number().optional().nullable(),
+  supplierId: z.number().optional().nullable(),
   mainImages: z.array(z.string()).optional(),
   detailImages: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
@@ -31,9 +31,8 @@ export const categorySchema = z.object({
   parentId: z.number().optional().nullable(),
 });
 
-export const brandSchema = z.object({
-  name: z.string().min(1, '品牌名称不能为空'),
-  logo: z.string().optional(),
+export const supplierSchema = z.object({
+  name: z.string().min(1, '供应商名称不能为空'),
 });
 
 export const updateStockSchema = z.object({
@@ -43,7 +42,7 @@ export const updateStockSchema = z.object({
 export const productFiltersSchema = z.object({
   search: z.string().optional(),
   categoryId: z.string().optional(),
-  brandId: z.string().optional(),
+  supplierId: z.string().optional(),
   status: z.string().optional(),
   minPrice: z.string().optional(),
   maxPrice: z.string().optional(),

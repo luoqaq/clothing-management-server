@@ -27,7 +27,7 @@ function createProductsDbMock(products: Product[]) {
             };
           }
 
-          if (table === schema.productCategories || table === schema.productBrands || table === schema.productSkus) {
+          if (table === schema.productCategories || table === schema.suppliers || table === schema.productSkus) {
             return {
               where: async () => [],
               orderBy: async () => [],
@@ -52,9 +52,9 @@ describe('ProductsService.getProducts', () => {
         name: 'T-Shirt A',
         description: 'A',
         categoryId: 1,
-        brandId: null,
+        supplierId: null,
         category: undefined,
-        brand: null,
+        supplier: null,
         mainImages: [],
         detailImages: [],
         specifications: [],
@@ -75,9 +75,9 @@ describe('ProductsService.getProducts', () => {
         name: 'T-Shirt B',
         description: 'B',
         categoryId: 1,
-        brandId: null,
+        supplierId: null,
         category: undefined,
-        brand: null,
+        supplier: null,
         mainImages: [],
         detailImages: [],
         specifications: [],
