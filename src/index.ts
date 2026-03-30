@@ -12,9 +12,11 @@ import { createAssetsRoutes } from './modules/assets/assets.routes';
 import { createProductsRoutes } from './modules/products/products.routes';
 import { createOrdersRoutes } from './modules/orders/orders.routes';
 import { createStatisticsRoutes } from './modules/statistics/statistics.routes';
+import { createMobileRoutes } from './modules/mobile/mobile.routes';
 
 const app = new Hono();
 const PORT = parseInt(Bun.env.PORT || '3000');
+const HOST = Bun.env.HOST || (Bun.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0');
 
 async function initializeApp() {
   // 连接数据库
@@ -38,16 +40,18 @@ async function initializeApp() {
   app.route('/api/products', createProductsRoutes(db));
   app.route('/api/orders', createOrdersRoutes(db));
   app.route('/api/statistics', createStatisticsRoutes(db));
+  app.route('/api/mobile', createMobileRoutes(db));
 
   // 全局错误处理
   app.onError(errorHandler);
 
   Bun.serve({
+    hostname: HOST,
     port: PORT,
     fetch: app.fetch,
   });
 
-  logger.info(`服务器启动成功，监听在 http://localhost:${PORT}`);
+  logger.info(`服务器启动成功，监听在 http://${HOST}:${PORT}`);
   logger.info('默认账户: admin / admin123');
 }
 

@@ -14,6 +14,7 @@ import { sql } from 'drizzle-orm';
 export const orders = mysqlTable('orders', {
   id: serial('id').primaryKey(),
   orderNo: varchar('order_no', { length: 50 }).notNull().unique(),
+  source: mysqlEnum('source', ['admin_web', 'staff_miniapp']).default('admin_web').notNull(),
   customerName: varchar('customer_name', { length: 100 }).notNull(),
   customerPhone: varchar('customer_phone', { length: 20 }).notNull(),
   customerEmail: varchar('customer_email', { length: 100 }),

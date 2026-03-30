@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 export const orderSchema = z.object({
-  customerName: z.string().min(1, '客户姓名不能为空'),
-  customerPhone: z.string().min(1, '客户电话不能为空'),
-  customerEmail: z.string().email('邮箱格式不正确').optional(),
+  source: z.enum(['admin_web', 'staff_miniapp']).optional(),
+  customerName: z.string().optional(),
+  customerPhone: z.string().optional(),
+  customerEmail: z.union([z.string().email('邮箱格式不正确'), z.literal('')]).optional(),
   items: z
     .array(
       z.object({
@@ -12,19 +13,19 @@ export const orderSchema = z.object({
       })
     )
     .min(1, '订单至少需要一个商品'),
-  totalAmount: z.number().min(0, '订单金额不能为负数'),
+  totalAmount: z.number().min(0, '订单金额不能为负数').optional(),
   discountAmount: z.number().min(0).optional(),
-  finalAmount: z.number().min(0, '实付金额不能为负数'),
+  finalAmount: z.number().min(0, '实付金额不能为负数').optional(),
   status: z.enum(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled', 'refunded']).optional(),
   address: z.object({
-    name: z.string().min(1),
-    phone: z.string().min(1),
-    province: z.string().min(1),
-    city: z.string().min(1),
-    district: z.string().min(1),
-    detail: z.string().min(1),
+    name: z.string().optional(),
+    phone: z.string().optional(),
+    province: z.string().optional(),
+    city: z.string().optional(),
+    district: z.string().optional(),
+    detail: z.string().optional(),
     postalCode: z.string().optional(),
-  }),
+  }).optional(),
   note: z.string().optional(),
   paymentMethod: z.string().optional(),
   paymentStatus: z.enum(['unpaid', 'paid', 'refunded']).optional(),
@@ -52,6 +53,7 @@ export const orderFiltersSchema = z.object({
   search: z.string().optional(),
   status: z.string().optional(),
   paymentStatus: z.string().optional(),
+  source: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   page: z.string().optional(),

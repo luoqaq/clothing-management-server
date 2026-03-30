@@ -1,0 +1,15 @@
+[Unit]
+Description=Clothing Management Server
+After=network.target
+
+[Service]
+Type=simple
+User=clothing
+WorkingDirectory=/var/clothing/server
+EnvironmentFile=/var/clothing/server/.env
+ExecStart=/home/clothing/.bun/bin/bun src/index.ts
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

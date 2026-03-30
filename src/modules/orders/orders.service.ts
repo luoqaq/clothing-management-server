@@ -1,6 +1,6 @@
 import { and, count, eq, gte, like, lte, or } from 'drizzle-orm';
 import * as schema from '../../db/schema';
-import type { Order, OrderFilters, OrderItem, OrderStatus } from '../../types';
+import type { Order, OrderFilters, OrderItem, OrderSource, OrderStatus } from '../../types';
 import dayjs from 'dayjs';
 import { ProductsService } from '../products/products.service';
 
@@ -41,6 +41,7 @@ export class OrdersService {
     return {
       id: Number(orderRow.id),
       orderNo: orderRow.orderNo,
+      source: (orderRow.source ?? 'admin_web') as OrderSource,
       customerName: orderRow.customerName,
       customerPhone: orderRow.customerPhone,
       customerEmail: orderRow.customerEmail ?? undefined,
@@ -49,7 +50,7 @@ export class OrdersService {
       discountAmount: Number(orderRow.discountAmount ?? 0),
       finalAmount: Number(orderRow.finalAmount ?? 0),
       status: orderRow.status,
-      address: typeof orderRow.address === 'string' ? JSON.parse(orderRow.address) : orderRow.address,
+      address: (typeof orderRow.address === 'string' ? JSON.parse(orderRow.address) : orderRow.address) ?? {},
       note: orderRow.note ?? undefined,
       paymentMethod: orderRow.paymentMethod ?? undefined,
       paymentStatus: orderRow.paymentStatus,
@@ -71,7 +72,7 @@ export class OrdersService {
   }): Promise<{ items: Order[]; total: number }> {
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? 20;
-    const { search, status, paymentStatus, startDate, endDate } = params?.filters || {};
+    const { search, status, paymentStatus, source, startDate, endDate } = params?.filters || {};
     const offset = (page - 1) * pageSize;
 
     const whereConditions: any[] = [];
@@ -92,6 +93,10 @@ export class OrdersService {
 
     if (paymentStatus) {
       whereConditions.push(eq(schema.orders.paymentStatus as any, paymentStatus as any));
+    }
+
+    if (source) {
+      whereConditions.push(eq(schema.orders.source as any, source as any));
     }
 
     if (startDate) {
@@ -172,22 +177,24 @@ export class OrdersService {
     const totalAmount = enrichedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const discountAmount = Number(data.discountAmount ?? 0);
     const finalAmount = Math.max(totalAmount - discountAmount, 0);
+    const nextStatus = data.status ?? 'pending';
 
     const inserted = await this.db
       .insert(schema.orders)
       .values({
         orderNo,
-        customerName: data.customerName,
-        customerPhone: data.customerPhone,
-        customerEmail: data.customerEmail,
+        source: data.source ?? 'admin_web',
+        customerName: data.customerName ?? '',
+        customerPhone: data.customerPhone ?? '',
+        customerEmail: data.customerEmail || null,
         totalAmount: String(totalAmount),
         discountAmount: String(discountAmount),
         finalAmount: String(finalAmount),
-        status: data.status ?? 'pending',
-        address: data.address,
+        status: nextStatus,
+        address: data.address ?? {},
         note: data.note,
         paymentMethod: data.paymentMethod,
-        paymentStatus: data.paymentStatus ?? 'unpaid',
+        paymentStatus: data.paymentStatus ?? 'paid',
       })
       .$returningId();
 
@@ -211,6 +218,12 @@ export class OrdersService {
       }))
     );
 
+    if (nextStatus === 'confirmed') {
+      for (const item of enrichedItems) {
+        await this.productsService.finalizeShippedStock(item.skuId, item.quantity);
+      }
+    }
+
     const order = await this.getOrder(orderId);
     if (!order) {
       throw new Error('创建订单失败');
@@ -231,6 +244,12 @@ export class OrdersService {
 
     if (status === 'shipped') {
       throw new Error('请使用发货接口');
+    }
+
+    if (status === 'confirmed' && order.status === 'pending') {
+      for (const item of order.items) {
+        await this.productsService.finalizeShippedStock(item.skuId, item.quantity);
+      }
     }
 
     const updates: Record<string, unknown> = { status };
@@ -283,7 +302,11 @@ export class OrdersService {
     }
 
     for (const item of order.items) {
-      await this.productsService.releaseSpecificationStock(item.skuId, item.quantity);
+      if (order.status === 'confirmed') {
+        await this.productsService.restoreSpecificationStock(item.skuId, item.quantity);
+      } else {
+        await this.productsService.releaseSpecificationStock(item.skuId, item.quantity);
+      }
     }
 
     await this.db
@@ -303,8 +326,14 @@ export class OrdersService {
       return null;
     }
 
-    if (!['delivered', 'shipped'].includes(order.status)) {
+    if (order.paymentStatus !== 'paid' || ['cancelled', 'refunded', 'pending'].includes(order.status)) {
       throw new Error('当前订单状态不可退款');
+    }
+
+    if (order.status === 'confirmed') {
+      for (const item of order.items) {
+        await this.productsService.restoreSpecificationStock(item.skuId, item.quantity);
+      }
     }
 
     await this.db
