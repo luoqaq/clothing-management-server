@@ -8,8 +8,12 @@ SERVICE_NAME="clothing-management-server"
 BUN_BIN="/usr/local/bin/bun"
 SERVER_HEALTH_URL="http://127.0.0.1:3000/health"
 
-if [ -x "/usr/local/node20-bin/npm" ]; then
-  NPM_BIN="/usr/local/node20-bin/npm"
+if [ -d "/usr/local/node20-bin" ]; then
+  export PATH="/usr/local/node20-bin:${PATH}"
+fi
+
+if command -v npm >/dev/null 2>&1; then
+  NPM_BIN="$(command -v npm)"
 elif command -v npm-20 >/dev/null 2>&1; then
   NPM_BIN="$(command -v npm-20)"
 else
