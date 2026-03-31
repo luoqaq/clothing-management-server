@@ -17,20 +17,33 @@ export interface LoginResult {
 export class AuthService {
   constructor(private db: any) {}
 
-  async login(credentials: LoginCredentials): Promise<LoginResult> {
-    const { username, password } = credentials;
-
+  private async findUserByUsername(username: string) {
     const users = await this.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.username, username))
-      .limit(1);
+      .where(eq(schema.users.username, username));
 
-    if (users.length === 0) {
+    return users[0] ?? null;
+  }
+
+  private async findUserById(userId: number) {
+    const users = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+
+    return users[0] ?? null;
+  }
+
+  async login(credentials: LoginCredentials): Promise<LoginResult> {
+    const { username, password } = credentials;
+
+    const user = await this.findUserByUsername(username);
+
+    if (!user) {
       throw new Error('用户名或密码错误');
     }
 
-    const user = users[0];
     const passwordValid = await comparePassword(password, user.passwordHash);
 
     if (!passwordValid) {
@@ -52,32 +65,23 @@ export class AuthService {
   }
 
   async getCurrentUser(userId: number): Promise<User> {
-    const users = await this.db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.id, userId))
-      .limit(1);
+    const user = await this.findUserById(userId);
 
-    if (users.length === 0) {
+    if (!user) {
       throw new Error('用户不存在');
     }
 
-    const { passwordHash, ...userWithoutPassword } = users[0];
+    const { passwordHash, ...userWithoutPassword } = user;
     return userWithoutPassword as unknown as User;
   }
 
   async changePassword(userId: number, oldPassword: string, newPassword: string): Promise<void> {
-    const users = await this.db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.id, userId))
-      .limit(1);
+    const user = await this.findUserById(userId);
 
-    if (users.length === 0) {
+    if (!user) {
       throw new Error('用户不存在');
     }
 
-    const user = users[0];
     const passwordValid = await comparePassword(oldPassword, user.passwordHash);
 
     if (!passwordValid) {
