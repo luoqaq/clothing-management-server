@@ -3,6 +3,20 @@
 最近更新：2026-03-31
 
 ## 会话更新（2026-03-31）
+- 已将后端 AI 商品导入接口推送到远端主分支：
+  - 当前提交：`ebaa8a4`
+- 已完成生产后端代码更新并验证：
+  - 线上后端仓库 `/var/clothing/server` 已更新到 `ebaa8a4`
+  - `systemctl is-active clothing-management-server` 返回 `active`
+  - `curl http://127.0.0.1:3000/health` 返回成功
+  - `curl -i -H 'Host: clothing.chuchu9.cn' http://127.0.0.1/api/auth/me` 返回 `401`
+- 本次线上部署遇到两个值得记住的点：
+  - `deploy/release.sh` 首次执行前，后端工作区已有 `bun.lock` 本地漂移；本次通过对锁文件改动执行临时 `git stash` 后继续发布
+  - `bun run db:migrate` 在“无新增 migration 文件、数据库迁移记录与本地 SQL hash 一致”的情况下仍退出失败
+  - 由于本次发布不包含新的 `drizzle/*.sql`，最终采用“跳过本次无必要迁移，手动重启后端并做健康检查”的方式完成上线
+  - 后续应单独排查生产机 `drizzle-kit migrate` 的执行异常，并考虑把发布脚本改成：仅在检测到 migration 文件变更时才执行迁移
+
+## 会话更新（2026-03-31）
 - 已新增商品批量导入后端接口：
   - `POST /api/products/import/parse-excel`
   - `POST /api/products/import/parse-image`
