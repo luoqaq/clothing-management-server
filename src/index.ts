@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { getCORSConfig } from './config/cors';
 import { errorHandler } from './middleware/error.middleware';
-import { success } from './utils/response';
-import { connectToDatabase } from './config/database';
+import { success, error } from './utils/response';
+import { checkDatabaseHealth, connectToDatabase } from './config/database';
 import { logger } from './utils/logger';
 
 // 导入路由
@@ -32,7 +32,15 @@ async function initializeApp() {
   }));
 
   // 健康检查
-  app.get('/health', (c) => c.json(success('OK')));
+  app.get('/health', async (c) => {
+    try {
+      await checkDatabaseHealth();
+      return c.json(success('OK'));
+    } catch (err) {
+      logger.error({ err }, 'Health check failed');
+      return c.json(error('数据库连接异常'), 503);
+    }
+  });
 
   // 注册路由
   app.route('/api/auth', createAuthRoutes(db));
