@@ -11,6 +11,9 @@ export function createProductsRoutes(db: MySql2Database<typeof schema>) {
   products.use('*', authMiddleware);
 
   products.get('/', (c) => controller.getProducts(c));
+  products.post('/import/parse-excel', (c) => controller.parseExcelImport(c));
+  products.post('/import/parse-image', (c) => controller.parseImageImport(c));
+  products.post('/import/bulk-create', (c) => controller.bulkCreateProducts(c));
   products.get('/categories', (c) => controller.getCategories(c));
   products.post('/categories', (c) => controller.createCategory(c));
   products.put('/categories/:id', (c) => controller.updateCategory(c));

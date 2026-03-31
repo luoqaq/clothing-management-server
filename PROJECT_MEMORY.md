@@ -1,6 +1,63 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-03-27
+最近更新：2026-03-31
+
+## 会话更新（2026-03-31）
+- 已新增商品批量导入后端接口：
+  - `POST /api/products/import/parse-excel`
+  - `POST /api/products/import/parse-image`
+  - `POST /api/products/import/bulk-create`
+- 已新增独立导入服务 `product-import.service.ts`：
+  - Excel 已调整为将“表头 + 行数据 + 目标商品结构 + 当前分类/供应商名单”整体交给 AI，由 AI 自行判断字段对应关系并直接输出商品草稿
+  - 截图通过 OpenAI-compatible `/chat/completions` 接口识别，要求模型只返回固定 JSON
+  - 解析结果统一输出商品草稿和问题列表，不直接落库
+  - AI SDK 调用方式已切换为 `openai` 官方 SDK 的 `client.responses.create(...)`，以兼容当前方舟 `responses` 风格接口
+- 已落实 v1 导入规则：
+  - 仅支持新增商品，不支持覆盖更新
+  - 分类缺失会报错并要求人工补选
+  - 供应商缺失可在最终提交时批量创建
+  - 校验覆盖款号重复、规格组合重复、SKU 编码重复、必填字段缺失
+- 已落实批量创建策略：
+  - 批量创建前先校验整批草稿
+  - 缺失供应商按开关决定是否自动创建
+  - 每条商品在独立事务中创建，单条失败不影响整批其他条目
+- 新增 AI 导入环境变量约定：
+  - `AI_IMPORT_BASE_URL`
+  - `AI_IMPORT_API_KEY`
+  - `AI_IMPORT_MODEL`
+- 本次验证已执行：
+  - `npm run build` 通过
+  - `npm test` 通过
+
+## 会话更新（2026-03-31）
+- 已完成生产环境部署方式切换：
+  - `/var/clothing/server` 已切换为标准 git 工作区
+  - 远端改为 `https://github.com/luoqaq/clothing-management-server.git`
+  - 当前线上后端仓库 HEAD：`e130b7d`
+- 已完成登录与 `LIMIT ?` 兼容性修复上线：
+  - 认证、商品、订单中的 `.limit(1)` 查询已清理
+  - 当前线上 `POST /api/auth/login` 使用 `admin / admin123` 返回 `200`
+- 已更新 `deploy/release.sh`，使其更贴合当前生产机：
+  - 前端构建前优先注入 `/usr/local/node20-bin` 到 `PATH`
+  - 后端重启不再依赖 `sudo systemctl restart`，改为杀当前 Bun 进程并等待 systemd 自动拉起
+- 当前线上后端服务状态：
+  - `clothing-management-server` 运行正常
+  - `GET http://127.0.0.1:3000/health` 返回成功
+- 已确认一次真实线上故障根因并完成代码修复：
+  - 现象：`/health` 正常，但登录、商品、分类、订单、统计等所有查库接口同时报错
+  - 根因：后端原先使用单个长期存活的 mysql2 连接，无连接池、无自动恢复；老进程的数据库连接失效后，业务查询整体异常，但服务进程仍存活
+  - 修复：
+    - `src/config/database.ts` 已从单连接切换为 mysql2 连接池
+    - 保留 `execute -> query` 的腾讯云 MySQL 兼容处理
+    - `src/index.ts` 的 `/health` 已升级为包含数据库探针
+  - 排障结论：
+    - 生产库本身正常，服务器直连 MySQL 查询 `users` 表正常
+    - 同代码旁路进程可正常登录
+    - 切换主进程后线上登录恢复
+- 注意：
+  - 当前服务器从 GitHub 执行 `git pull --ff-only` 在非交互 SSH 会话里出现过卡住现象
+  - 但 `git clone`、`git fetch bundle`、站点访问与接口联调均正常
+  - 若后续再次出现拉取卡住，优先排查服务器到 GitHub 的网络连通性，不要直接回退成“覆盖目录上传”
 
 ## 会话更新（2026-03-27）
 - 商品主数据已从“品牌”切换为“供应商”：

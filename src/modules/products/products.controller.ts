@@ -9,14 +9,18 @@ import {
   supplierSchema,
   updateStockSchema,
 } from './products.schema';
+import { bulkCreateProductsSchema, parseExcelImportSchema } from './product-import.schema';
 import { error, success, successPaginated } from '../../utils/response';
 import { logger } from '../../utils/logger';
+import { ProductImportService } from './product-import.service';
 
 export class ProductsController {
   private service: ProductsService;
+  private importService: ProductImportService;
 
   constructor(db: MySql2Database<typeof schema>) {
     this.service = new ProductsService(db);
+    this.importService = new ProductImportService(db);
   }
 
   async getProducts(c: Context) {
@@ -77,6 +81,47 @@ export class ProductsController {
       return c.json(success(product), 201);
     } catch (err: any) {
       logger.error('Create product error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async parseExcelImport(c: Context) {
+    try {
+      const data = await c.req.json();
+      const payload = parseExcelImportSchema.parse(data);
+      const result = await this.importService.parseExcelImport(payload);
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Parse excel import error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async parseImageImport(c: Context) {
+    try {
+      const body = await c.req.parseBody();
+      const file = body.file;
+
+      if (!(file instanceof File)) {
+        return c.json(error('请上传图片文件'), 400);
+      }
+
+      const result = await this.importService.parseImageImport(file);
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Parse image import error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async bulkCreateProducts(c: Context) {
+    try {
+      const data = await c.req.json();
+      const payload = bulkCreateProductsSchema.parse(data);
+      const result = await this.importService.bulkCreateProducts(payload.products, payload.createMissingSuppliers);
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Bulk create products error:', err);
       return c.json(error(err.message), 400);
     }
   }
