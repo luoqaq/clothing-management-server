@@ -15,6 +15,10 @@ export class OrdersService {
     this.productsService = new ProductsService(db);
   }
 
+  private firstRow<T>(rows: T[]): T | null {
+    return rows[0] ?? null;
+  }
+
   private async buildOrder(orderRow: any): Promise<Order | null> {
     if (!orderRow) {
       return null;
@@ -127,8 +131,8 @@ export class OrdersService {
   }
 
   async getOrder(id: number): Promise<Order | null> {
-    const rows = await this.db.select().from(schema.orders).where(eq(schema.orders.id, id)).limit(1);
-    return this.buildOrder(rows[0]);
+    const rows = await this.db.select().from(schema.orders).where(eq(schema.orders.id, id));
+    return this.buildOrder(this.firstRow(rows));
   }
 
   async createOrder(data: CreateOrderPayload): Promise<Order> {
@@ -139,10 +143,9 @@ export class OrdersService {
         const skuRows = await this.db
           .select()
           .from(schema.productSkus)
-          .where(eq(schema.productSkus.id, item.skuId))
-          .limit(1);
+          .where(eq(schema.productSkus.id, item.skuId));
 
-        const sku = skuRows[0];
+        const sku = this.firstRow(skuRows);
         if (!sku) {
           throw new Error('规格不存在');
         }
@@ -150,10 +153,9 @@ export class OrdersService {
         const productRows = await this.db
           .select()
           .from(schema.products)
-          .where(eq(schema.products.id, sku.productId))
-          .limit(1);
+          .where(eq(schema.products.id, sku.productId));
 
-        const product = productRows[0];
+        const product = this.firstRow(productRows);
         if (!product) {
           throw new Error('商品不存在');
         }

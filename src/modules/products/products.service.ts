@@ -26,6 +26,10 @@ type ProductPayload = Omit<
 export class ProductsService {
   constructor(private db: any) {}
 
+  private firstRow<T>(rows: T[]): T | null {
+    return rows[0] ?? null;
+  }
+
   private normalizeJsonStringArray(value: unknown): string[] {
     if (Array.isArray(value)) {
       return value.map((item) => String(item));
@@ -189,7 +193,7 @@ export class ProductsService {
   }
 
   async getProduct(id: number): Promise<Product | null> {
-    const rows = await this.db.select().from(schema.products).where(eq(schema.products.id, id)).limit(1);
+    const rows = await this.db.select().from(schema.products).where(eq(schema.products.id, id));
     const products = await this.getProductsWithRelations(rows);
     return products[0] ?? null;
   }
@@ -312,13 +316,8 @@ export class ProductsService {
   }
 
   async updateSpecificationStock(specificationId: number, stock: number): Promise<Product | null> {
-    const rows = await this.db
-      .select()
-      .from(schema.productSkus)
-      .where(eq(schema.productSkus.id, specificationId))
-      .limit(1);
-
-    const specification = rows[0];
+    const rows = await this.db.select().from(schema.productSkus).where(eq(schema.productSkus.id, specificationId));
+    const specification = this.firstRow(rows);
     if (!specification) {
       return null;
     }
@@ -332,13 +331,8 @@ export class ProductsService {
   }
 
   async reserveSpecificationStock(specificationId: number, quantity: number): Promise<void> {
-    const rows = await this.db
-      .select()
-      .from(schema.productSkus)
-      .where(eq(schema.productSkus.id, specificationId))
-      .limit(1);
-
-    const specification = rows[0];
+    const rows = await this.db.select().from(schema.productSkus).where(eq(schema.productSkus.id, specificationId));
+    const specification = this.firstRow(rows);
     if (!specification) {
       throw new Error('规格不存在');
     }
@@ -358,13 +352,8 @@ export class ProductsService {
   }
 
   async releaseSpecificationStock(specificationId: number, quantity: number): Promise<void> {
-    const rows = await this.db
-      .select()
-      .from(schema.productSkus)
-      .where(eq(schema.productSkus.id, specificationId))
-      .limit(1);
-
-    const specification = rows[0];
+    const rows = await this.db.select().from(schema.productSkus).where(eq(schema.productSkus.id, specificationId));
+    const specification = this.firstRow(rows);
     if (!specification) {
       throw new Error('规格不存在');
     }
@@ -378,13 +367,8 @@ export class ProductsService {
   }
 
   async finalizeShippedStock(specificationId: number, quantity: number): Promise<void> {
-    const rows = await this.db
-      .select()
-      .from(schema.productSkus)
-      .where(eq(schema.productSkus.id, specificationId))
-      .limit(1);
-
-    const specification = rows[0];
+    const rows = await this.db.select().from(schema.productSkus).where(eq(schema.productSkus.id, specificationId));
+    const specification = this.firstRow(rows);
     if (!specification) {
       throw new Error('规格不存在');
     }
@@ -402,13 +386,8 @@ export class ProductsService {
   }
 
   async restoreSpecificationStock(specificationId: number, quantity: number): Promise<void> {
-    const rows = await this.db
-      .select()
-      .from(schema.productSkus)
-      .where(eq(schema.productSkus.id, specificationId))
-      .limit(1);
-
-    const specification = rows[0];
+    const rows = await this.db.select().from(schema.productSkus).where(eq(schema.productSkus.id, specificationId));
+    const specification = this.firstRow(rows);
     if (!specification) {
       throw new Error('规格不存在');
     }
@@ -433,30 +412,18 @@ export class ProductsService {
   async createCategory(data: Omit<ProductCategory, 'id'>): Promise<ProductCategory> {
     const result = await this.db.insert(schema.productCategories).values(data).$returningId();
     const insertedId = result[0]?.id;
-    const rows = await this.db
-      .select()
-      .from(schema.productCategories)
-      .where(eq(schema.productCategories.id, insertedId))
-      .limit(1);
-    return rows[0] as ProductCategory;
+    const rows = await this.db.select().from(schema.productCategories).where(eq(schema.productCategories.id, insertedId));
+    return this.firstRow(rows) as ProductCategory;
   }
 
   async updateCategory(id: number, data: Partial<Omit<ProductCategory, 'id'>>): Promise<ProductCategory | null> {
     await this.db.update(schema.productCategories).set(data).where(eq(schema.productCategories.id, id));
-    const rows = await this.db
-      .select()
-      .from(schema.productCategories)
-      .where(eq(schema.productCategories.id, id))
-      .limit(1);
-    return (rows[0] as ProductCategory | undefined) ?? null;
+    const rows = await this.db.select().from(schema.productCategories).where(eq(schema.productCategories.id, id));
+    return (this.firstRow(rows) as ProductCategory | undefined) ?? null;
   }
 
   async deleteCategory(id: number): Promise<boolean> {
-    const rows = await this.db
-      .select()
-      .from(schema.productCategories)
-      .where(eq(schema.productCategories.id, id))
-      .limit(1);
+    const rows = await this.db.select().from(schema.productCategories).where(eq(schema.productCategories.id, id));
 
     if (rows.length === 0) {
       return false;
@@ -474,18 +441,18 @@ export class ProductsService {
   async createSupplier(data: Omit<Supplier, 'id'>): Promise<Supplier> {
     const result = await this.db.insert(schema.suppliers).values(data).$returningId();
     const insertedId = result[0]?.id;
-    const rows = await this.db.select().from(schema.suppliers).where(eq(schema.suppliers.id, insertedId)).limit(1);
-    return rows[0] as Supplier;
+    const rows = await this.db.select().from(schema.suppliers).where(eq(schema.suppliers.id, insertedId));
+    return this.firstRow(rows) as Supplier;
   }
 
   async updateSupplier(id: number, data: Partial<Omit<Supplier, 'id'>>): Promise<Supplier | null> {
     await this.db.update(schema.suppliers).set(data).where(eq(schema.suppliers.id, id));
-    const rows = await this.db.select().from(schema.suppliers).where(eq(schema.suppliers.id, id)).limit(1);
-    return (rows[0] as Supplier | undefined) ?? null;
+    const rows = await this.db.select().from(schema.suppliers).where(eq(schema.suppliers.id, id));
+    return (this.firstRow(rows) as Supplier | undefined) ?? null;
   }
 
   async deleteSupplier(id: number): Promise<boolean> {
-    const rows = await this.db.select().from(schema.suppliers).where(eq(schema.suppliers.id, id)).limit(1);
+    const rows = await this.db.select().from(schema.suppliers).where(eq(schema.suppliers.id, id));
 
     if (rows.length === 0) {
       return false;
