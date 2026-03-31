@@ -5,12 +5,13 @@ set -euo pipefail
 ADMIN_DIR="/var/clothing/admin"
 SERVER_DIR="/var/clothing/server"
 SERVICE_NAME="clothing-management-server"
-NODE20_BIN_DIR="/usr/local/node20-bin"
 BUN_BIN="/usr/local/bin/bun"
 SERVER_HEALTH_URL="http://127.0.0.1:3000/health"
 
-if [ -x "${NODE20_BIN_DIR}/npm" ]; then
-  NPM_BIN="${NODE20_BIN_DIR}/npm"
+if [ -x "/usr/local/node20-bin/npm" ]; then
+  NPM_BIN="/usr/local/node20-bin/npm"
+elif command -v npm-20 >/dev/null 2>&1; then
+  NPM_BIN="$(command -v npm-20)"
 else
   NPM_BIN="npm"
 fi
