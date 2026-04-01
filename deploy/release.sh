@@ -35,12 +35,14 @@ require_clean_repo() {
 has_migration_changes() {
   local old_ref="$1"
   local new_ref="$2"
+  local changed_files=""
 
   if [ "$old_ref" = "$new_ref" ]; then
     return 1
   fi
 
-  git diff --name-only "${old_ref}..${new_ref}" -- 'drizzle/*.sql' 'drizzle/meta/*' | grep -q .
+  changed_files="$(git diff --name-only "${old_ref}..${new_ref}")"
+  grep -Eq '^drizzle/.+\.sql$|^drizzle/meta/' <<<"${changed_files}"
 }
 
 restart_backend() {
