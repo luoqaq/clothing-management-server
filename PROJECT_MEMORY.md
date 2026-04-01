@@ -3,6 +3,24 @@
 最近更新：2026-04-01
 
 ## 会话更新（2026-04-01）
+- 已将商品款号从“全局唯一”改为“允许重复”：
+  - `products.product_code` 已去掉唯一约束
+  - 已新增迁移脚本：`drizzle/0004_product_code_repeatable.sql`
+  - 已补写 `drizzle/meta/_journal.json`，避免部署时迁移文件存在但 journal 缺项
+- 已同步调整 SKU 生成策略，避免重复款号后撞上规格唯一约束：
+  - 后端保存时的 `product_skus.sku_code` 已改为 `款号-尺码-颜色-P{productId}`
+  - 这样可继续保持 SKU 全局唯一，同时允许不同商品复用同一款号
+- 已同步放开导入流程中的重复款号校验：
+  - 后端导入解析与批量创建不再把“款号已存在 / 同批款号重复”视为错误
+  - 仍保留“同一商品内颜色+尺码组合不能重复”的校验
+- 本次验证已执行：
+  - `bun test` 通过
+  - `bun run build` 通过
+- 注意：
+  - 正式环境上线时，必须同步执行 `drizzle/0004_product_code_repeatable.sql`
+  - 历史已存在商品的旧 `sku_code` 不会自动回写为新格式；本次变更只影响之后新建或重新保存过规格的商品
+
+## 会话更新（2026-04-01）
 - 已新增管理员/销售角色 v1 机制：
   - 用户角色枚举已扩展支持 `sales`，同时继续兼容历史 `manager/staff`
   - JWT、`/api/auth/login`、`/api/auth/me` 已统一把非管理员角色归一为 `sales`
@@ -23,6 +41,8 @@
   - `npm test` 通过
 - 上线注意：
   - 部署管理员/销售角色功能到正式环境时，必须同步执行 `drizzle/0003_sales_role.sql` 或等价 SQL，先把线上库 `users.role` 枚举扩展为包含 `sales`，否则新增销售账号会因数据库不识别 `sales` 而失败
+  - 本次实际发布到生产机时还额外发现：仅新增 `drizzle/0003_sales_role.sql` 不够，必须同时提交 `drizzle/meta/_journal.json` 中的 `0003_sales_role` 条目；否则 `bun run db:migrate` 会在“applying migrations”阶段退出，但不给出清晰错误
+  - 本次线上已通过手动执行 `ALTER TABLE users MODIFY COLUMN role enum('admin','sales','manager','staff') ...` 并补写 `__drizzle_migrations` 记录的方式完成兜底，随后后端服务健康恢复
 
 ## 会话更新（2026-04-01）
 - 已收敛后端锁文件与发布入口的漂移问题：

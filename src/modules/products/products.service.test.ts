@@ -104,3 +104,16 @@ describe('ProductsService.getProducts', () => {
     expect(result.items[0].id).toBe(2);
   });
 });
+
+describe('ProductsService sku code generation', () => {
+  it('builds unique sku codes for repeated product codes with different product ids', () => {
+    const service = new ProductsService({} as any);
+
+    const firstSkuCode = (service as any).buildSkuCode(101, 'KH001', 'M', '白色');
+    const secondSkuCode = (service as any).buildSkuCode(102, 'KH001', 'M', '白色');
+
+    expect(firstSkuCode).toBe('KH001-M-白色-P101');
+    expect(secondSkuCode).toBe('KH001-M-白色-P102');
+    expect(firstSkuCode).not.toBe(secondSkuCode);
+  });
+});

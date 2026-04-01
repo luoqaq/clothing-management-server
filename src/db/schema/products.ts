@@ -29,7 +29,7 @@ export const suppliers = mysqlTable('suppliers', {
 
 export const products = mysqlTable('products', {
   id: serial('id').primaryKey(),
-  productCode: varchar('product_code', { length: 100 }).notNull().unique(),
+  productCode: varchar('product_code', { length: 100 }).notNull(),
   name: varchar('name', { length: 200 }).notNull(),
   description: text('description'),
   categoryId: int('category_id').notNull(),

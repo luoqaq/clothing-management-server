@@ -1,4 +1,3 @@
-import { inArray } from 'drizzle-orm';
 import OpenAI from 'openai';
 import * as schema from '../../db/schema';
 import type {
@@ -92,10 +91,6 @@ export class ProductImportService {
     return [value];
   }
 
-  private buildSkuCode(productCode: string, size: string, color: string): string {
-    return [productCode, size, color].map((item) => this.normalizeText(item)).filter(Boolean).join('-');
-  }
-
   private findCategoryId(categoryName: string, categories: Array<{ id: number; name: string }>): number | null {
     if (!categoryName) {
       return null;
@@ -161,17 +156,10 @@ export class ProductImportService {
     };
   }
 
-  private validateDrafts(drafts: ImportDraftProduct[], existingProductCodes = new Set<string>(), existingSkuCodes = new Set<string>()): ImportIssue[] {
+  private validateDrafts(drafts: ImportDraftProduct[]): ImportIssue[] {
     const issues: ImportIssue[] = [];
-    const productCodeMap = new Map<string, string[]>();
-    const batchSkuCodes = new Map<string, string[]>();
 
     for (const draft of drafts) {
-      const normalizedCode = this.normalizeLookup(draft.productCode);
-      if (normalizedCode) {
-        productCodeMap.set(normalizedCode, [...(productCodeMap.get(normalizedCode) ?? []), draft.rowKey]);
-      }
-
       if (!draft.productCode) {
         issues.push({ level: 'error', rowKey: draft.rowKey, field: 'productCode', message: '款号不能为空' });
       }
@@ -215,14 +203,6 @@ export class ProductImportService {
         if (spec.stock < 0) {
           issues.push({ level: 'error', rowKey: draft.rowKey, specRowKey: spec.rowKey, field: 'stock', message: '库存不能为负数' });
         }
-
-        const skuCode = this.buildSkuCode(draft.productCode, spec.size, spec.color);
-        if (skuCode) {
-          batchSkuCodes.set(skuCode, [...(batchSkuCodes.get(skuCode) ?? []), `${draft.rowKey}:${spec.rowKey}`]);
-          if (existingSkuCodes.has(this.normalizeLookup(skuCode))) {
-            issues.push({ level: 'error', rowKey: draft.rowKey, specRowKey: spec.rowKey, field: 'skuCode', message: `规格编码 ${skuCode} 已存在` });
-          }
-        }
       });
 
       for (const [, rowKeys] of specKeys.entries()) {
@@ -233,52 +213,9 @@ export class ProductImportService {
         }
       }
 
-      if (normalizedCode && existingProductCodes.has(normalizedCode)) {
-        issues.push({ level: 'error', rowKey: draft.rowKey, field: 'productCode', message: `款号 ${draft.productCode} 已存在` });
-      }
-    }
-
-    for (const [productCode, rowKeys] of productCodeMap.entries()) {
-      if (productCode && rowKeys.length > 1) {
-        rowKeys.forEach((rowKey) => {
-          issues.push({ level: 'error', rowKey, field: 'productCode', message: '同一批导入中款号不能重复' });
-        });
-      }
-    }
-
-    for (const [, entries] of batchSkuCodes.entries()) {
-      if (entries.length > 1) {
-        entries.forEach((entry) => {
-          const [rowKey, specRowKey] = entry.split(':');
-          issues.push({ level: 'error', rowKey, specRowKey, field: 'skuCode', message: '同一批导入中规格编码不能重复' });
-        });
-      }
     }
 
     return issues;
-  }
-
-  private async getExistingCodeSets(drafts: ImportDraftProduct[]) {
-    const productCodes = Array.from(new Set(drafts.map((item) => this.normalizeText(item.productCode)).filter(Boolean)));
-    const skuCodes = Array.from(new Set(
-      drafts.flatMap((draft) =>
-        draft.specifications.map((spec) => this.buildSkuCode(draft.productCode, spec.size, spec.color))
-      ).filter(Boolean)
-    ));
-
-    const [existingProducts, existingSkus] = await Promise.all([
-      productCodes.length
-        ? this.db.select().from(schema.products).where(inArray(schema.products.productCode, productCodes))
-        : Promise.resolve([]),
-      skuCodes.length
-        ? this.db.select().from(schema.productSkus).where(inArray(schema.productSkus.skuCode, skuCodes))
-        : Promise.resolve([]),
-    ]);
-
-    return {
-      productCodes: new Set(existingProducts.map((item: any) => this.normalizeLookup(item.productCode))),
-      skuCodes: new Set(existingSkus.map((item: any) => this.normalizeLookup(item.skuCode))),
-    };
   }
 
   private stripJsonBlock(content: string): string {
@@ -431,11 +368,9 @@ export class ProductImportService {
         })),
       }, categories, suppliers);
     });
-    const existingSets = await this.getExistingCodeSets(drafts);
-
     return {
       drafts,
-      issues: this.validateDrafts(drafts, existingSets.productCodes, existingSets.skuCodes),
+      issues: this.validateDrafts(drafts),
     };
   }
 
@@ -497,11 +432,9 @@ export class ProductImportService {
       }, categories, suppliers);
     });
 
-    const existingSets = await this.getExistingCodeSets(drafts);
-
     return {
       drafts,
-      issues: this.validateDrafts(drafts, existingSets.productCodes, existingSets.skuCodes),
+      issues: this.validateDrafts(drafts),
     };
   }
 
@@ -514,8 +447,7 @@ export class ProductImportService {
       this.productsService.getSuppliers(),
     ]);
     const normalizedDrafts = drafts.map((draft) => this.normalizeDraftProduct(draft, categories, suppliers));
-    const existingSets = await this.getExistingCodeSets(normalizedDrafts);
-    const issues = this.validateDrafts(normalizedDrafts, existingSets.productCodes, existingSets.skuCodes);
+    const issues = this.validateDrafts(normalizedDrafts);
 
     if (issues.some((item) => item.level === 'error')) {
       throw new Error('导入数据校验未通过，请先修正错误项');
@@ -572,7 +504,7 @@ export class ProductImportService {
             specifications: draft.specifications.map((spec) => ({
               id: 0,
               productId: 0,
-              skuCode: this.buildSkuCode(draft.productCode, spec.size, spec.color),
+              skuCode: '',
               barcode: spec.barcode ?? null,
               color: spec.color,
               size: spec.size,

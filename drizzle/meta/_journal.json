@@ -29,6 +29,13 @@
       "when": 1775044800000,
       "tag": "0003_sales_role",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1775131200000,
+      "tag": "0004_product_code_repeatable",
+      "breakpoints": true
     }
   ]
 }

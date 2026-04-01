@@ -48,8 +48,9 @@ export class ProductsService {
     return [];
   }
 
-  private buildSkuCode(productCode: string, size: string, color: string): string {
-    return [productCode, size, color].map((item) => String(item ?? '').trim()).join('-');
+  private buildSkuCode(productId: number, productCode: string, size: string, color: string): string {
+    const parts = [productCode, size, color].map((item) => String(item ?? '').trim()).filter(Boolean);
+    return [...parts, `P${productId}`].join('-');
   }
 
   private normalizeSpecification(row: any): ProductSpecification {
@@ -249,7 +250,7 @@ export class ProductsService {
     await this.db.insert(schema.productSkus).values(
       data.specifications.map((item) => ({
         productId: insertedId,
-        skuCode: this.buildSkuCode(data.productCode, item.size, item.color),
+        skuCode: this.buildSkuCode(insertedId, data.productCode, item.size, item.color),
         barcode: item.barcode ?? null,
         color: item.color,
         size: item.size,
@@ -315,7 +316,7 @@ export class ProductsService {
       await this.db.insert(schema.productSkus).values(
         specificationsToPersist.map((item) => ({
           productId: id,
-          skuCode: this.buildSkuCode(nextProductCode, item.size, item.color),
+          skuCode: this.buildSkuCode(id, nextProductCode, item.size, item.color),
           barcode: item.barcode ?? null,
           color: item.color,
           size: item.size,
