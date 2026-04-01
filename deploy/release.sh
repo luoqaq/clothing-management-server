@@ -7,6 +7,7 @@ SERVER_DIR="/var/clothing/server"
 SERVICE_NAME="clothing-management-server"
 BUN_BIN="/usr/local/bin/bun"
 SERVER_HEALTH_URL="http://127.0.0.1:3000/health"
+TARGET="${1:-all}"
 
 if [ -d "/usr/local/node20-bin" ]; then
   export PATH="/usr/local/node20-bin:${PATH}"
@@ -30,6 +31,17 @@ require_clean_repo() {
     git status --short >&2
     return 1
   fi
+}
+
+validate_target() {
+  case "$1" in
+    admin|server|all)
+      ;;
+    *)
+      echo "Usage: $0 [admin|server|all]" >&2
+      return 1
+      ;;
+  esac
 }
 
 has_migration_changes() {
@@ -65,30 +77,49 @@ restart_backend() {
   return 1
 }
 
-echo "==> Updating frontend"
-require_clean_repo "$ADMIN_DIR" "Frontend"
-ADMIN_BEFORE="$(git rev-parse HEAD)"
-git pull --ff-only
-ADMIN_AFTER="$(git rev-parse HEAD)"
-"${NPM_BIN}" --version
-"${NPM_BIN}" ci
-"${NPM_BIN}" run build
-echo "Frontend updated: ${ADMIN_BEFORE} -> ${ADMIN_AFTER}"
+deploy_admin() {
+  echo "==> Updating frontend"
+  require_clean_repo "$ADMIN_DIR" "Frontend"
+  ADMIN_BEFORE="$(git rev-parse HEAD)"
+  git pull --ff-only
+  ADMIN_AFTER="$(git rev-parse HEAD)"
+  "${NPM_BIN}" --version
+  "${NPM_BIN}" ci
+  "${NPM_BIN}" run build
+  echo "Frontend updated: ${ADMIN_BEFORE} -> ${ADMIN_AFTER}"
+}
 
-echo "==> Updating backend"
-require_clean_repo "$SERVER_DIR" "Backend"
-SERVER_BEFORE="$(git rev-parse HEAD)"
-git pull --ff-only
-SERVER_AFTER="$(git rev-parse HEAD)"
-"${BUN_BIN}" install --frozen-lockfile
-if has_migration_changes "${SERVER_BEFORE}" "${SERVER_AFTER}"; then
-  echo "==> Migration files changed, running db:migrate"
-  "${BUN_BIN}" run db:migrate
-else
-  echo "==> No migration file changes, skipping db:migrate"
-fi
-restart_backend
-echo "Backend updated: ${SERVER_BEFORE} -> ${SERVER_AFTER}"
+deploy_server() {
+  echo "==> Updating backend"
+  require_clean_repo "$SERVER_DIR" "Backend"
+  SERVER_BEFORE="$(git rev-parse HEAD)"
+  git pull --ff-only
+  SERVER_AFTER="$(git rev-parse HEAD)"
+  "${BUN_BIN}" install --frozen-lockfile
+  if has_migration_changes "${SERVER_BEFORE}" "${SERVER_AFTER}"; then
+    echo "==> Migration files changed, running db:migrate"
+    "${BUN_BIN}" run db:migrate
+  else
+    echo "==> No migration file changes, skipping db:migrate"
+  fi
+  restart_backend
+  echo "Backend updated: ${SERVER_BEFORE} -> ${SERVER_AFTER}"
+}
 
-echo "==> Deployment finished"
+validate_target "${TARGET}"
+
+case "${TARGET}" in
+  admin)
+    deploy_admin
+    ;;
+  server)
+    deploy_server
+    ;;
+  all)
+    deploy_admin
+    deploy_server
+    ;;
+esac
+
+echo "==> Deployment finished (target=${TARGET})"
 systemctl status "$SERVICE_NAME" --no-pager

@@ -173,6 +173,18 @@ sudo tail -n 100 /var/log/nginx/error.log
 sudo bash /var/clothing/server/deploy/release.sh
 ```
 
+也支持按目标发布：
+
+```bash
+sudo bash /var/clothing/server/deploy/release.sh admin
+sudo bash /var/clothing/server/deploy/release.sh server
+sudo bash /var/clothing/server/deploy/release.sh all
+```
+
+- `admin`：只更新前端并重新构建
+- `server`：只更新后端并按需执行迁移、重启服务
+- `all`：按“前端 -> 后端”执行完整发版；默认值也是 `all`
+
 如果仍然以 `db:push` 为主，先把 `release.sh` 中的迁移命令改成实际采用的数据库更新命令，再上线。
 
 ## 10. HTTPS

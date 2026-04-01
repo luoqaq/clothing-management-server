@@ -9,6 +9,7 @@
   - `deploy/release.sh` 已改为在发布前检查工作区是否干净，脏工作区会直接报错退出
   - 后端依赖安装已改为 `bun install --frozen-lockfile`，避免服务器继续改写 `bun.lock`
   - `deploy/release.sh` 已进一步改为仅在检测到 `drizzle/*.sql` 或 `drizzle/meta/*` 变更时才执行 `db:migrate`
+  - `deploy/release.sh` 已支持 `admin` / `server` / `all` 三种发布目标，默认仍为 `all`
 - 本次验证已执行：
   - `bash -n deploy/release.sh` 通过
   - `bun run build` 通过
