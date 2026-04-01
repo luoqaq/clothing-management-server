@@ -60,7 +60,7 @@ async function initializeApp() {
   });
 
   logger.info(`服务器启动成功，监听在 http://${HOST}:${PORT}`);
-  logger.info('默认账户: admin / admin123');
+  logger.info('默认账户: chuchu / chuchu0510');
 }
 
 // 启动应用

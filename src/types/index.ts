@@ -4,7 +4,7 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
-  role: 'admin' | 'manager' | 'staff';
+  role: 'admin' | 'sales';
 }
 
 export interface LoginCredentials {

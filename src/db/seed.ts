@@ -26,17 +26,17 @@ async function seed() {
   }
 
   // 创建管理员用户
-  const passwordHash = await hashPassword('admin123');
+  const passwordHash = await hashPassword('chuchu0510');
   await dbAny.insert(schema.users).values({
-    username: 'admin',
+    username: 'chuchu',
     passwordHash,
     name: '系统管理员',
-    email: 'admin@clothing.com',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
+    email: 'chuchu@clothing.com',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=chuchu',
     role: 'admin',
   });
 
-  console.log('✓ 创建管理员用户: admin / admin123');
+  console.log('✓ 创建管理员用户: chuchu / chuchu0510');
 
   // 创建分类
   await dbAny.insert(schema.productCategories).values([

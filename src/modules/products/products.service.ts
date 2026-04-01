@@ -7,6 +7,7 @@ import type {
   ProductSpecification,
   Supplier,
 } from '../../types';
+import { isAdminRole } from '../../utils/role';
 
 type ProductPayload = Omit<
   Product,
@@ -73,6 +74,30 @@ export class ProductsService {
     };
   }
 
+  private sanitizeSpecification(specification: ProductSpecification, role?: string): ProductSpecification {
+    if (isAdminRole(role)) {
+      return specification;
+    }
+
+    return {
+      ...specification,
+      costPrice: undefined as unknown as number,
+    };
+  }
+
+  private sanitizeProduct(product: Product, role?: string): Product {
+    if (isAdminRole(role)) {
+      return product;
+    }
+
+    return {
+      ...product,
+      supplierId: null,
+      supplier: null,
+      specifications: product.specifications.map((item) => this.sanitizeSpecification(item, role)),
+    };
+  }
+
   private buildProduct(
     productRow: any,
     categories: ProductCategory[],
@@ -109,7 +134,7 @@ export class ProductsService {
     };
   }
 
-  private async getProductsWithRelations(productRows: any[]): Promise<Product[]> {
+  private async getProductsWithRelations(productRows: any[], role?: string): Promise<Product[]> {
     if (productRows.length === 0) {
       return [];
     }
@@ -122,12 +147,12 @@ export class ProductsService {
     ]);
 
     return productRows.map((productRow) =>
-      this.buildProduct(
+      this.sanitizeProduct(this.buildProduct(
         productRow,
         categories,
         suppliers,
         specifications.filter((item: any) => Number(item.productId) === Number(productRow.id))
-      )
+      ), role)
     );
   }
 
@@ -135,10 +160,12 @@ export class ProductsService {
     page?: number;
     pageSize?: number;
     filters?: ProductFilters;
+    role?: string;
   }): Promise<{ items: Product[]; total: number }> {
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? 20;
     const { search, categoryId, supplierId, status, minPrice, maxPrice } = params?.filters || {};
+    const role = params?.role;
     const offset = (page - 1) * pageSize;
 
     const whereConditions: any[] = [];
@@ -153,7 +180,7 @@ export class ProductsService {
       whereConditions.push(eq(schema.products.categoryId, Number(categoryId)));
     }
 
-    if (supplierId) {
+    if (supplierId && isAdminRole(role)) {
       whereConditions.push(eq(schema.products.supplierId, Number(supplierId)));
     }
 
@@ -171,7 +198,7 @@ export class ProductsService {
       .limit(pageSize)
       .offset(offset);
 
-    let products = await this.getProductsWithRelations(rows);
+    let products = await this.getProductsWithRelations(rows, role);
 
     if (typeof minPrice === 'number') {
       products = products.filter((item) => item.maxPrice >= minPrice);
@@ -192,9 +219,9 @@ export class ProductsService {
     };
   }
 
-  async getProduct(id: number): Promise<Product | null> {
+  async getProduct(id: number, role?: string): Promise<Product | null> {
     const rows = await this.db.select().from(schema.products).where(eq(schema.products.id, id));
-    const products = await this.getProductsWithRelations(rows);
+    const products = await this.getProductsWithRelations(rows, role);
     return products[0] ?? null;
   }
 

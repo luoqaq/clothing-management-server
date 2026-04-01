@@ -59,6 +59,7 @@ export class MobileController {
       const result = await this.service.getProductsService().getProducts({
         page: page ? parseInt(page, 10) : 1,
         pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+        role: c.get('user')?.role,
         filters: {
           search,
           categoryId: categoryId ? parseInt(categoryId, 10) : undefined,
@@ -86,7 +87,7 @@ export class MobileController {
   async getProduct(c: Context) {
     try {
       const id = parseInt(c.req.param('id') || '0', 10);
-      const product = await this.service.getProductsService().getProduct(id);
+      const product = await this.service.getProductsService().getProduct(id, c.get('user')?.role);
 
       if (!product) {
         return c.json(error('商品不存在'), 404);
@@ -101,7 +102,7 @@ export class MobileController {
 
   async getProductOptions(c: Context) {
     try {
-      const result = await this.service.getProductOptions();
+      const result = await this.service.getProductOptions(c.get('user')?.role);
       return c.json(success(result));
     } catch (err: any) {
       logger.error('Get mobile product options error:', err);

@@ -72,15 +72,12 @@ export class MobileService {
     };
   }
 
-  async getProductOptions() {
-    const [categories, suppliers] = await Promise.all([
-      this.productsService.getCategories(),
-      this.productsService.getSuppliers(),
-    ]);
+  async getProductOptions(role?: string) {
+    const categories = await this.productsService.getCategories();
 
     return {
       categories,
-      suppliers,
+      suppliers: role === 'admin' ? await this.productsService.getSuppliers() : [],
       productStatuses: ['draft', 'active', 'inactive'],
       specificationStatuses: ['active', 'inactive'],
     };

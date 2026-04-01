@@ -8,7 +8,7 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
-  role: 'admin' | 'manager' | 'staff';
+  role: 'admin' | 'sales' | 'manager' | 'staff';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -103,14 +103,14 @@ export const mockData = {
     if (this.users.length > 0) return;
 
     // 创建管理员用户
-    const passwordHash = await hashPassword('password');
+    const passwordHash = await hashPassword('chuchu0510');
     this.users.push({
       id: nextId.users++,
-      username: 'admin',
+      username: 'chuchu',
       passwordHash,
       name: '系统管理员',
-      email: 'admin@clothing.com',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
+      email: 'chuchu@clothing.com',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=chuchu',
       role: 'admin',
       createdAt: new Date(),
       updatedAt: new Date(),

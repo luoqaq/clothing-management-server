@@ -3,6 +3,28 @@
 最近更新：2026-04-01
 
 ## 会话更新（2026-04-01）
+- 已新增管理员/销售角色 v1 机制：
+  - 用户角色枚举已扩展支持 `sales`，同时继续兼容历史 `manager/staff`
+  - JWT、`/api/auth/login`、`/api/auth/me` 已统一把非管理员角色归一为 `sales`
+- 已新增管理员专用销售账号管理接口：
+  - `GET /api/auth/users`
+  - `POST /api/auth/users`
+  - `PUT /api/auth/users/:id`
+  - 当前仅允许管理员查看和维护非管理员账号，不支持新增第二个管理员
+- 已补上服务端权限收口与数据脱敏：
+  - 商品新增/编辑/删除、分类/供应商维护、批量导入、统计接口均已限制为管理员
+  - 销售及历史 `manager/staff` 获取商品列表/详情时不再返回 `supplierId`、`supplier`、`costPrice`
+  - 小程序 `/api/mobile/product-options` 对非管理员不再返回 `suppliers`
+  - 小程序商品创建与图片补传已收口为仅管理员
+- 已新增迁移脚本：
+  - `drizzle/0003_sales_role.sql`
+- 本次验证已执行：
+  - `npm run build` 通过
+  - `npm test` 通过
+- 上线注意：
+  - 部署管理员/销售角色功能到正式环境时，必须同步执行 `drizzle/0003_sales_role.sql` 或等价 SQL，先把线上库 `users.role` 枚举扩展为包含 `sales`，否则新增销售账号会因数据库不识别 `sales` 而失败
+
+## 会话更新（2026-04-01）
 - 已收敛后端锁文件与发布入口的漂移问题：
   - `package.json` 已显式声明 `packageManager=bun@1.3.11`
   - 本地重新执行 `bun install` 后，已把 `openai`、`qcloud-cos-sts` 及其传递依赖写回 `bun.lock`
@@ -65,7 +87,7 @@
   - 当前线上后端仓库 HEAD：`e130b7d`
 - 已完成登录与 `LIMIT ?` 兼容性修复上线：
   - 认证、商品、订单中的 `.limit(1)` 查询已清理
-  - 当前线上 `POST /api/auth/login` 使用 `admin / admin123` 返回 `200`
+  - 当前线上 `POST /api/auth/login` 使用默认管理员账号可返回 `200`
 - 已更新 `deploy/release.sh`，使其更贴合当前生产机：
   - 前端构建前优先注入 `/usr/local/node20-bin` 到 `PATH`
   - 后端重启不再依赖 `sudo systemctl restart`，改为杀当前 Bun 进程并等待 systemd 自动拉起
@@ -248,7 +270,7 @@
 
 ## 已验证接口
 - `GET /health` 返回 `{"success":true,"data":"OK"}`
-- `POST /api/auth/login` 使用 `admin / admin123` 可登录
+- `POST /api/auth/login` 使用默认管理员账号可登录
 
 ## 已知问题与风险
 - MySQL `DECIMAL` 字段默认返回字符串。

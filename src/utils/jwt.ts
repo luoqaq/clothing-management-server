@@ -4,7 +4,7 @@ import { getJWTConfig } from '../config/jwt';
 export interface JwtPayload {
   userId: number;
   username: string;
-  role: string;
+  role: 'admin' | 'sales';
 }
 
 export function generateToken(payload: JwtPayload): string {

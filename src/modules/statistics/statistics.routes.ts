@@ -3,12 +3,14 @@ import { StatisticsController } from './statistics.controller';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import * as schema from '../../db/schema';
 import { authMiddleware } from '../../middleware/auth.middleware';
+import { requireRoles } from '../../middleware/role.middleware';
 
 export function createStatisticsRoutes(db: MySql2Database<typeof schema>) {
   const controller = new StatisticsController(db);
   const statistics = new Hono();
 
   statistics.use('*', authMiddleware);
+  statistics.use('*', requireRoles(['admin']));
 
   statistics.get('/overview', (c) => controller.getSalesOverview(c));
   statistics.get('/daily-sales', (c) => controller.getDailySales(c));

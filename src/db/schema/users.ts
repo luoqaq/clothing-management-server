@@ -8,7 +8,7 @@ export const users = mysqlTable('users', {
   name: varchar('name', { length: 100 }).notNull(),
   email: varchar('email', { length: 100 }).unique(),
   avatar: varchar('avatar', { length: 500 }),
-  role: mysqlEnum('role', ['admin', 'manager', 'staff']).notNull().default('staff'),
+  role: mysqlEnum('role', ['admin', 'sales', 'manager', 'staff']).notNull().default('staff'),
   createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: datetime('updated_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
