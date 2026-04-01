@@ -36,6 +36,20 @@
       "when": 1775131200000,
       "tag": "0004_product_code_repeatable",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1775217600000,
+      "tag": "0005_customer_statistics",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1775223000000,
+      "tag": "0006_cumulative_inbound_cost",
+      "breakpoints": true
     }
   ]
 }

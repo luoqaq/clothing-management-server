@@ -5,6 +5,7 @@ export const orderSchema = z.object({
   customerName: z.string().optional(),
   customerPhone: z.string().optional(),
   customerEmail: z.union([z.string().email('邮箱格式不正确'), z.literal('')]).optional(),
+  ageBucketId: z.number().int().min(1).nullable().optional(),
   items: z
     .array(
       z.object({

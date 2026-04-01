@@ -29,6 +29,28 @@ export interface Supplier {
   name: string;
 }
 
+export interface CustomerAgeBucket {
+  id: number;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Customer {
+  id: number;
+  phone: string;
+  name: string;
+  email?: string | null;
+  ageBucketId?: number | null;
+  ageBucket?: CustomerAgeBucket | null;
+  firstPaidOrderAt?: string | null;
+  lastPaidOrderAt?: string | null;
+  paidOrderCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ProductStatus = 'draft' | 'active' | 'inactive';
 export type ProductSpecificationStatus = 'active' | 'inactive';
 
@@ -44,6 +66,8 @@ export interface ProductSpecification {
   stock: number;
   reservedStock: number;
   availableStock: number;
+  cumulativeInboundQuantity: number;
+  cumulativeCostAmount: number;
   status: ProductSpecificationStatus;
   createdAt: string;
   updatedAt: string;
@@ -149,6 +173,7 @@ export interface OrderItem {
   skuCode: string;
   image?: string | null;
   price: number;
+  costPriceSnapshot?: number;
   quantity: number;
   color?: string | null;
   size?: string | null;
@@ -168,9 +193,11 @@ export interface Order {
   id: number;
   orderNo: string;
   source: OrderSource;
+  customerId?: number | null;
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
+  ageBucketId?: number | null;
   items: OrderItem[];
   totalAmount: number;
   discountAmount?: number;
@@ -184,6 +211,7 @@ export interface Order {
   trackingNumber?: string | null;
   cancelReason?: string | null;
   refundReason?: string | null;
+  paidAt?: string;
   shippedAt?: string;
   deliveredAt?: string;
   createdAt: string;
@@ -202,42 +230,91 @@ export interface OrderFilters {
 export interface DailySalesData {
   date: string;
   revenue: number;
+  cost: number;
+  grossProfit: number;
   orders: number;
   customers: number;
 }
 
 export interface ProductSalesRanking {
   productId: number;
+  productCode: string;
   productName: string;
-  skuCode: string;
-  specification: string;
   image?: string | null;
   quantity: number;
   revenue: number;
+  cost: number;
+  grossProfit: number;
+  grossMargin: number;
+}
+
+export interface CostProductRankingItem {
+  productId: number;
+  skuId: number;
+  productCode: string;
+  skuCode: string;
+  productName: string;
+  color: string;
+  size: string;
+  image?: string | null;
+  stock: number;
+  costPrice: number;
+  totalCost: number;
+  cumulativeInboundQuantity?: number;
 }
 
 export interface CategorySalesData {
   categoryId: number;
   categoryName: string;
   revenue: number;
+  cost: number;
   orders: number;
-  percentage: number;
+  quantity: number;
+  grossProfit: number;
+  grossMargin: number;
+  revenuePercentage: number;
+  costPercentage: number;
 }
 
 export interface RegionSalesData {
   region: string;
   revenue: number;
+  cost: number;
   orders: number;
-  percentage: number;
+  revenuePercentage: number;
+  costPercentage: number;
 }
 
 export interface StatisticsSummary {
   totalRevenue: number;
+  totalCost: number;
+  totalGrossProfit: number;
   totalOrders: number;
   totalCustomers: number;
+  newCustomers: number;
+  returningCustomers: number;
   avgOrderValue: number;
+  avgCostPerOrder: number;
   revenueGrowth: number;
+  costGrowth: number;
+  grossProfitGrowth: number;
   ordersGrowth: number;
+}
+
+export interface CustomerAnalysisResponse {
+  customerCount: number;
+  newCustomers: number;
+  returningCustomers: number;
+  ageDistribution: Array<{
+    ageBucketId?: number | null;
+    ageBucketName: string;
+    customerCount: number;
+    percentage: number;
+  }>;
+}
+
+export interface CostOverviewResponse {
+  totalCost: number;
 }
 
 export interface StatisticsState {

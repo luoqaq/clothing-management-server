@@ -1,4 +1,4 @@
-import { and, count, eq, gte, like, lte, or } from 'drizzle-orm';
+import { and, count, eq, gte, like, lte, ne, or } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { Order, OrderFilters, OrderItem, OrderSource, OrderStatus } from '../../types';
 import dayjs from 'dayjs';
@@ -19,15 +19,149 @@ export class OrdersService {
     return rows[0] ?? null;
   }
 
+  private isSchemaCompatibilityError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return (
+      message.includes('customer_id') ||
+      message.includes('paid_at') ||
+      message.includes('cost_price_snapshot') ||
+      message.includes('customers')
+    );
+  }
+
+  private buildValidPaidOrderWhereByPhone(phone: string) {
+    return and(
+      eq(schema.orders.customerPhone, phone),
+      eq(schema.orders.paymentStatus, 'paid'),
+      ne(schema.orders.status, 'cancelled'),
+      ne(schema.orders.status, 'refunded')
+    );
+  }
+
+  private async syncCustomerProfileByOrder(orderId: number, ageBucketId?: number | null) {
+    let orderRows: any[] = [];
+    try {
+      orderRows = await this.db.select().from(schema.orders).where(eq(schema.orders.id, orderId));
+    } catch (error) {
+      if (this.isSchemaCompatibilityError(error)) {
+        return;
+      }
+      throw error;
+    }
+    const order = this.firstRow(orderRows);
+    if (!order?.customerPhone || order.paymentStatus !== 'paid' || ['cancelled', 'refunded'].includes(order.status)) {
+      return;
+    }
+
+    let existingCustomers: any[] = [];
+    try {
+      existingCustomers = await this.db
+        .select()
+        .from(schema.customers)
+        .where(eq(schema.customers.phone, order.customerPhone));
+    } catch (error) {
+      if (this.isSchemaCompatibilityError(error)) {
+        return;
+      }
+      throw error;
+    }
+
+    let customerId = this.firstRow(existingCustomers)?.id;
+    if (!customerId) {
+      const inserted = await this.db.insert(schema.customers).values({
+        phone: order.customerPhone,
+        name: order.customerName ?? '',
+        email: order.customerEmail ?? null,
+        ...(typeof ageBucketId !== 'undefined' ? { ageBucketId } : {}),
+      }).$returningId();
+      customerId = inserted[0]?.id;
+    }
+
+    if (!customerId) {
+      return;
+    }
+
+    const paidOrders = await this.db
+      .select({
+        id: schema.orders.id,
+        paidAt: schema.orders.paidAt,
+        customerName: schema.orders.customerName,
+        customerEmail: schema.orders.customerEmail,
+      })
+      .from(schema.orders)
+      .where(this.buildValidPaidOrderWhereByPhone(order.customerPhone));
+
+    const paidOrderTimes = paidOrders
+      .map((item: any) => item.paidAt)
+      .filter(Boolean)
+      .map((item: Date) => item.getTime())
+      .sort((a, b) => a - b);
+
+    await this.db.update(schema.customers).set({
+      name: order.customerName ?? '',
+      email: order.customerEmail ?? null,
+      ...(typeof ageBucketId !== 'undefined' ? { ageBucketId } : {}),
+      firstPaidOrderAt: paidOrderTimes[0] ? new Date(paidOrderTimes[0]) : null,
+      lastPaidOrderAt: paidOrderTimes[paidOrderTimes.length - 1] ? new Date(paidOrderTimes[paidOrderTimes.length - 1]) : null,
+      paidOrderCount: paidOrders.length,
+    }).where(eq(schema.customers.id, customerId));
+
+    await this.db.update(schema.orders).set({ customerId }).where(eq(schema.orders.id, orderId));
+  }
+
+  private async syncCustomerProfileByPhone(phone?: string) {
+    if (!phone) {
+      return;
+    }
+
+    let rows: any[] = [];
+    try {
+      rows = await this.db.select({ id: schema.orders.id }).from(schema.orders).where(eq(schema.orders.customerPhone, phone)).orderBy(schema.orders.updatedAt, 'desc').limit(1);
+    } catch (error) {
+      if (this.isSchemaCompatibilityError(error)) {
+        return;
+      }
+      throw error;
+    }
+    const order = this.firstRow(rows);
+    if (!order) {
+      return;
+    }
+
+    await this.syncCustomerProfileByOrder(Number(order.id));
+  }
+
   private async buildOrder(orderRow: any): Promise<Order | null> {
     if (!orderRow) {
       return null;
     }
 
-    const itemRows = await this.db
-      .select()
-      .from(schema.orderItems)
-      .where(eq(schema.orderItems.orderId, orderRow.id));
+    let itemRows: any[] = [];
+    try {
+      itemRows = await this.db
+        .select()
+        .from(schema.orderItems)
+        .where(eq(schema.orderItems.orderId, orderRow.id));
+    } catch (error) {
+      if (!this.isSchemaCompatibilityError(error)) {
+        throw error;
+      }
+      itemRows = await this.db
+        .select({
+          id: schema.orderItems.id,
+          productId: schema.orderItems.productId,
+          skuId: schema.orderItems.skuId,
+          productName: schema.orderItems.productName,
+          skuCode: schema.orderItems.skuCode,
+          image: schema.orderItems.image,
+          price: schema.orderItems.price,
+          quantity: schema.orderItems.quantity,
+          color: schema.orderItems.color,
+          size: schema.orderItems.size,
+        })
+        .from(schema.orderItems)
+        .where(eq(schema.orderItems.orderId, orderRow.id));
+    }
 
     const items: OrderItem[] = itemRows.map((item: any) => ({
       id: Number(item.id),
@@ -37,6 +171,7 @@ export class OrdersService {
       skuCode: item.skuCode,
       image: item.image ?? null,
       price: Number(item.price ?? 0),
+      costPriceSnapshot: Number(item.costPriceSnapshot ?? 0),
       quantity: Number(item.quantity ?? 0),
       color: item.color ?? null,
       size: item.size ?? null,
@@ -46,6 +181,7 @@ export class OrdersService {
       id: Number(orderRow.id),
       orderNo: orderRow.orderNo,
       source: (orderRow.source ?? 'admin_web') as OrderSource,
+      customerId: orderRow.customerId ? Number(orderRow.customerId) : null,
       customerName: orderRow.customerName,
       customerPhone: orderRow.customerPhone,
       customerEmail: orderRow.customerEmail ?? undefined,
@@ -62,6 +198,7 @@ export class OrdersService {
       trackingNumber: orderRow.trackingNumber ?? null,
       cancelReason: orderRow.cancelReason ?? null,
       refundReason: orderRow.refundReason ?? null,
+      paidAt: orderRow.paidAt ? String(orderRow.paidAt) : undefined,
       shippedAt: orderRow.shippedAt ? String(orderRow.shippedAt) : undefined,
       deliveredAt: orderRow.deliveredAt ? String(orderRow.deliveredAt) : undefined,
       createdAt: String(orderRow.createdAt),
@@ -113,13 +250,50 @@ export class OrdersService {
 
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
-    const rows = await this.db
-      .select()
-      .from(schema.orders)
-      .where(whereClause)
-      .orderBy(schema.orders.createdAt, 'desc')
-      .limit(pageSize)
-      .offset(offset);
+    let rows: any[] = [];
+    try {
+      rows = await this.db
+        .select()
+        .from(schema.orders)
+        .where(whereClause)
+        .orderBy(schema.orders.createdAt, 'desc')
+        .limit(pageSize)
+        .offset(offset);
+    } catch (error) {
+      if (!this.isSchemaCompatibilityError(error)) {
+        throw error;
+      }
+      rows = await this.db
+        .select({
+          id: schema.orders.id,
+          orderNo: schema.orders.orderNo,
+          source: schema.orders.source,
+          customerName: schema.orders.customerName,
+          customerPhone: schema.orders.customerPhone,
+          customerEmail: schema.orders.customerEmail,
+          totalAmount: schema.orders.totalAmount,
+          discountAmount: schema.orders.discountAmount,
+          finalAmount: schema.orders.finalAmount,
+          status: schema.orders.status,
+          address: schema.orders.address,
+          note: schema.orders.note,
+          paymentMethod: schema.orders.paymentMethod,
+          paymentStatus: schema.orders.paymentStatus,
+          shippingCompany: schema.orders.shippingCompany,
+          trackingNumber: schema.orders.trackingNumber,
+          cancelReason: schema.orders.cancelReason,
+          refundReason: schema.orders.refundReason,
+          shippedAt: schema.orders.shippedAt,
+          deliveredAt: schema.orders.deliveredAt,
+          createdAt: schema.orders.createdAt,
+          updatedAt: schema.orders.updatedAt,
+        })
+        .from(schema.orders)
+        .where(whereClause)
+        .orderBy(schema.orders.createdAt, 'desc')
+        .limit(pageSize)
+        .offset(offset);
+    }
 
     const items = (await Promise.all(rows.map((row: any) => this.buildOrder(row)))).filter(Boolean) as Order[];
     const totalQuery = await this.db.select({ count: count() }).from(schema.orders).where(whereClause);
@@ -131,107 +305,211 @@ export class OrdersService {
   }
 
   async getOrder(id: number): Promise<Order | null> {
-    const rows = await this.db.select().from(schema.orders).where(eq(schema.orders.id, id));
-    return this.buildOrder(this.firstRow(rows));
+    try {
+      const rows = await this.db.select().from(schema.orders).where(eq(schema.orders.id, id));
+      return this.buildOrder(this.firstRow(rows));
+    } catch (error) {
+      if (!this.isSchemaCompatibilityError(error)) {
+        throw error;
+      }
+      const rows = await this.db
+        .select({
+          id: schema.orders.id,
+          orderNo: schema.orders.orderNo,
+          source: schema.orders.source,
+          customerName: schema.orders.customerName,
+          customerPhone: schema.orders.customerPhone,
+          customerEmail: schema.orders.customerEmail,
+          totalAmount: schema.orders.totalAmount,
+          discountAmount: schema.orders.discountAmount,
+          finalAmount: schema.orders.finalAmount,
+          status: schema.orders.status,
+          address: schema.orders.address,
+          note: schema.orders.note,
+          paymentMethod: schema.orders.paymentMethod,
+          paymentStatus: schema.orders.paymentStatus,
+          shippingCompany: schema.orders.shippingCompany,
+          trackingNumber: schema.orders.trackingNumber,
+          cancelReason: schema.orders.cancelReason,
+          refundReason: schema.orders.refundReason,
+          shippedAt: schema.orders.shippedAt,
+          deliveredAt: schema.orders.deliveredAt,
+          createdAt: schema.orders.createdAt,
+          updatedAt: schema.orders.updatedAt,
+        })
+        .from(schema.orders)
+        .where(eq(schema.orders.id, id));
+      return this.buildOrder(this.firstRow(rows));
+    }
   }
 
   async createOrder(data: CreateOrderPayload): Promise<Order> {
     const orderNo = this.generateOrderNo();
+    const reservedItems: Array<{ skuId: number; quantity: number }> = [];
 
-    const enrichedItems = await Promise.all(
-      data.items.map(async (item) => {
-        const skuRows = await this.db
-          .select()
-          .from(schema.productSkus)
-          .where(eq(schema.productSkus.id, item.skuId));
+    try {
+      const enrichedItems = await Promise.all(
+        data.items.map(async (item) => {
+          const skuRows = await this.db
+            .select()
+            .from(schema.productSkus)
+            .where(eq(schema.productSkus.id, item.skuId));
 
-        const sku = this.firstRow(skuRows);
-        if (!sku) {
-          throw new Error('规格不存在');
+          const sku = this.firstRow(skuRows);
+          if (!sku) {
+            throw new Error('规格不存在');
+          }
+
+          const productRows = await this.db
+            .select()
+            .from(schema.products)
+            .where(eq(schema.products.id, sku.productId));
+
+          const product = this.firstRow(productRows);
+          if (!product) {
+            throw new Error('商品不存在');
+          }
+
+          await this.productsService.reserveSpecificationStock(Number(sku.id), item.quantity);
+          reservedItems.push({ skuId: Number(sku.id), quantity: item.quantity });
+
+          return {
+            productId: Number(product.id),
+            skuId: Number(sku.id),
+            productName: product.name,
+            skuCode: sku.skuCode,
+            image: Array.isArray(product.mainImages) ? product.mainImages[0] ?? null : null,
+            price: Number(sku.salePrice ?? 0),
+            costPriceSnapshot: Number(sku.costPrice ?? 0),
+            quantity: item.quantity,
+            color: sku.color,
+            size: sku.size,
+          };
+        })
+      );
+
+      const totalAmount = enrichedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const discountAmount = Number(data.discountAmount ?? 0);
+      const finalAmount = Math.max(totalAmount - discountAmount, 0);
+      const nextStatus = data.status ?? 'pending';
+      const paymentStatus = data.paymentStatus ?? 'paid';
+      const paidAt = paymentStatus === 'paid' ? new Date() : null;
+
+      let inserted: Array<{ id: number }> = [];
+      try {
+        inserted = await this.db
+          .insert(schema.orders)
+          .values({
+            orderNo,
+            source: data.source ?? 'admin_web',
+            customerId: null,
+            customerName: data.customerName ?? '',
+            customerPhone: data.customerPhone ?? '',
+            customerEmail: data.customerEmail || null,
+            totalAmount: String(totalAmount),
+            discountAmount: String(discountAmount),
+            finalAmount: String(finalAmount),
+            status: nextStatus,
+            address: data.address ?? {},
+            note: data.note,
+            paymentMethod: data.paymentMethod,
+            paymentStatus,
+            paidAt,
+          })
+          .$returningId();
+      } catch (error) {
+        if (!this.isSchemaCompatibilityError(error)) {
+          throw error;
         }
 
-        const productRows = await this.db
-          .select()
-          .from(schema.products)
-          .where(eq(schema.products.id, sku.productId));
-
-        const product = this.firstRow(productRows);
-        if (!product) {
-          throw new Error('商品不存在');
-        }
-
-        await this.productsService.reserveSpecificationStock(Number(sku.id), item.quantity);
-
-        return {
-          productId: Number(product.id),
-          skuId: Number(sku.id),
-          productName: product.name,
-          skuCode: sku.skuCode,
-          image: Array.isArray(product.mainImages) ? product.mainImages[0] ?? null : null,
-          price: Number(sku.salePrice ?? 0),
-          quantity: item.quantity,
-          color: sku.color,
-          size: sku.size,
-        };
-      })
-    );
-
-    const totalAmount = enrichedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const discountAmount = Number(data.discountAmount ?? 0);
-    const finalAmount = Math.max(totalAmount - discountAmount, 0);
-    const nextStatus = data.status ?? 'pending';
-
-    const inserted = await this.db
-      .insert(schema.orders)
-      .values({
-        orderNo,
-        source: data.source ?? 'admin_web',
-        customerName: data.customerName ?? '',
-        customerPhone: data.customerPhone ?? '',
-        customerEmail: data.customerEmail || null,
-        totalAmount: String(totalAmount),
-        discountAmount: String(discountAmount),
-        finalAmount: String(finalAmount),
-        status: nextStatus,
-        address: data.address ?? {},
-        note: data.note,
-        paymentMethod: data.paymentMethod,
-        paymentStatus: data.paymentStatus ?? 'paid',
-      })
-      .$returningId();
-
-    const orderId = inserted[0]?.id;
-    if (!orderId) {
-      throw new Error('创建订单失败');
-    }
-
-    await this.db.insert(schema.orderItems).values(
-      enrichedItems.map((item) => ({
-        orderId,
-        productId: item.productId,
-        skuId: item.skuId,
-        productName: item.productName,
-        skuCode: item.skuCode,
-        image: item.image,
-        price: String(item.price),
-        quantity: item.quantity,
-        color: item.color,
-        size: item.size,
-      }))
-    );
-
-    if (nextStatus === 'confirmed') {
-      for (const item of enrichedItems) {
-        await this.productsService.finalizeShippedStock(item.skuId, item.quantity);
+        inserted = await this.db
+          .insert(schema.orders)
+          .values({
+            orderNo,
+            source: data.source ?? 'admin_web',
+            customerName: data.customerName ?? '',
+            customerPhone: data.customerPhone ?? '',
+            customerEmail: data.customerEmail || null,
+            totalAmount: String(totalAmount),
+            discountAmount: String(discountAmount),
+            finalAmount: String(finalAmount),
+            status: nextStatus,
+            address: data.address ?? {},
+            note: data.note,
+            paymentMethod: data.paymentMethod,
+            paymentStatus,
+          })
+          .$returningId();
       }
-    }
 
-    const order = await this.getOrder(orderId);
-    if (!order) {
-      throw new Error('创建订单失败');
-    }
+      const orderId = inserted[0]?.id;
+      if (!orderId) {
+        throw new Error('创建订单失败');
+      }
 
-    return order;
+      try {
+        await this.db.insert(schema.orderItems).values(
+          enrichedItems.map((item) => ({
+            orderId,
+            productId: item.productId,
+            skuId: item.skuId,
+            productName: item.productName,
+            skuCode: item.skuCode,
+            image: item.image,
+            price: String(item.price),
+            costPriceSnapshot: String(item.costPriceSnapshot),
+            quantity: item.quantity,
+            color: item.color,
+            size: item.size,
+          }))
+        );
+      } catch (error) {
+        if (!this.isSchemaCompatibilityError(error)) {
+          throw error;
+        }
+
+        await this.db.insert(schema.orderItems).values(
+          enrichedItems.map((item) => ({
+            orderId,
+            productId: item.productId,
+            skuId: item.skuId,
+            productName: item.productName,
+            skuCode: item.skuCode,
+            image: item.image,
+            price: String(item.price),
+            quantity: item.quantity,
+            color: item.color,
+            size: item.size,
+          }))
+        );
+      }
+
+      if (nextStatus === 'confirmed') {
+        for (const item of enrichedItems) {
+          await this.productsService.finalizeShippedStock(item.skuId, item.quantity);
+        }
+      }
+
+      if (paymentStatus === 'paid' && data.customerPhone) {
+        await this.syncCustomerProfileByOrder(orderId, typeof data.ageBucketId === 'number' ? data.ageBucketId : null);
+      }
+
+      const order = await this.getOrder(orderId);
+      if (!order) {
+        throw new Error('创建订单失败');
+      }
+
+      return order;
+    } catch (error) {
+      for (const item of reservedItems.reverse()) {
+        try {
+          await this.productsService.releaseSpecificationStock(item.skuId, item.quantity);
+        } catch {
+          // Best-effort rollback for compatibility-mode failures.
+        }
+      }
+      throw error;
+    }
   }
 
   async updateOrderStatus(id: number, status: OrderStatus): Promise<Order | null> {
@@ -319,6 +597,10 @@ export class OrdersService {
       })
       .where(eq(schema.orders.id, id));
 
+    if (order.customerPhone) {
+      await this.syncCustomerProfileByPhone(order.customerPhone);
+    }
+
     return this.getOrder(id);
   }
 
@@ -346,6 +628,10 @@ export class OrdersService {
         refundReason: data.reason,
       })
       .where(eq(schema.orders.id, id));
+
+    if (order.customerPhone) {
+      await this.syncCustomerProfileByPhone(order.customerPhone);
+    }
 
     return this.getOrder(id);
   }

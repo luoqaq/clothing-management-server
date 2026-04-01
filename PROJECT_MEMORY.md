@@ -3,6 +3,92 @@
 最近更新：2026-04-01
 
 ## 会话更新（2026-04-01）
+- 已新增累计入库成本模型：
+  - `product_skus.cumulative_inbound_quantity`
+  - `product_skus.cumulative_cost_amount`
+- 已新增迁移脚本：
+  - `drizzle/0006_cumulative_inbound_cost.sql`
+- 当前成本统计口径已调整为“累计入库成本”：
+  - 新建商品/规格时，按初始库存与成本价写入累计字段
+  - 手工改库存时，仅对增加量追加累计数量与累计金额
+  - 销售出库、预留库存、退款回补不减少累计字段
+  - 成本统计概览、分类成本、商品成本排行均基于累计字段计算
+- 测试库已完成 `0006` 结构落库与回填核验：
+  - `product_skus.cumulative_inbound_quantity` 已存在
+  - `product_skus.cumulative_cost_amount` 已存在
+  - `__drizzle_migrations` 最新记录已推进到 `id=7`
+- 注意：
+  - 本次 `bunx drizzle-kit migrate` 仍出现“停在 applying migrations 但不给清晰报错”的老问题
+  - 本次已通过“手动执行 SQL + 手动补 `__drizzle_migrations` 记录”的方式完成测试库迁移
+- 本次验证已执行：
+  - `bun run build` 通过
+  - `bun test` 通过
+
+## 会话更新（2026-04-01）
+- 已按仓库标准入口对测试数据库执行完整迁移：
+  - 命令：`npm run db:migrate`
+  - 结果：成功应用到当前 `.env` 指向的测试库 `closthin-system-test`
+- 已额外做数据库侧核验，确认 `0005_customer_statistics.sql` 相关结构已落库：
+  - 表：`customer_age_buckets`
+  - 表：`customers`
+  - 字段：`orders.paid_at`
+  - 字段：`order_items.cost_price_snapshot`
+  - `__drizzle_migrations` 最新记录已推进到 `id=6`
+- 本次验证已执行：
+  - `npm run db:migrate` 通过
+  - `bun run build` 通过
+
+## 会话更新（2026-04-01）
+- 已为订单创建接口补充可选 `ageBucketId` 字段。
+- 后台新增订单表单现已支持在客户信息中选择年龄段。
+- 当订单为已支付且填写了手机号时，客户归并逻辑会把下单时选择的年龄段同步写入客户档案。
+- 本次验证已执行：
+  - `bun run build` 通过
+  - `bun test` 通过
+
+## 会话更新（2026-04-01）
+- 已按经营统计需求补齐客户与成本快照基础模型：
+  - 新增 `customers` 表
+  - 新增 `customer_age_buckets` 表
+  - `orders` 新增 `customer_id`、`paid_at`
+  - `order_items` 新增 `cost_price_snapshot`
+  - 已新增迁移脚本：`drizzle/0005_customer_statistics.sql`
+- 已补充订单与客户归并链路：
+  - 创建已支付订单后，会按手机号归并客户档案并回写 `orders.customer_id`
+  - 客户档案会维护首单时间、最近支付时间、有效支付订单数
+  - 订单取消/退款后会重新同步客户有效支付统计
+- 已重构统计接口为销售/成本模块化输出：
+  - 销售统计新增：概览、客户分析、分类销售分析、商品销售排行、商品毛利分析
+  - 成本统计新增：成本概览、分类成本分析、商品成本排行
+- 已新增客户与年龄段管理接口：
+  - `GET /api/customers`
+  - `PATCH /api/customers/:id`
+  - `GET/POST/PUT/DELETE /api/customers/age-buckets`
+- 当前统计口径已固定：
+  - 仅统计 `paymentStatus=paid` 且未取消/未退款的有效支付订单
+  - 时间维度使用 `orders.paid_at`
+  - 成本与毛利均基于 `order_items.cost_price_snapshot`
+  - 新客/老客按客户首单是否落在当前统计期内区分
+- 本次验证已执行：
+  - `bun run build` 通过
+  - `bun test` 通过
+- 上线注意：
+  - 正式环境上线前必须执行 `drizzle/0005_customer_statistics.sql`
+  - 历史订单的 `cost_price_snapshot` 与 `customer_id` 不会自动回填；本次统计准确性对新订单最佳，若要让历史报表完全准确，需要后续补一轮历史数据回填脚本
+
+## 会话更新（2026-04-01）
+- 已扩展统计接口返回的成本维度数据：
+  - 统计概览新增 `totalCost`、`avgCostPerOrder`、`costGrowth`
+  - 日趋势新增 `cost`
+  - 商品排行新增 `cost`
+  - 分类/区域统计新增 `cost` 以及成本占比字段
+- 当前成本统计口径说明：
+  - 统计时按已支付订单明细数量乘以当前 `product_skus.cost_price` 回算成本
+  - 由于订单明细表尚未固化下单时成本价，历史订单成本会受后续 SKU 成本价变动影响
+- 本次验证已执行：
+  - `bun run build` 通过
+
+## 会话更新（2026-04-01）
 - 已将商品款号从“全局唯一”改为“允许重复”：
   - `products.product_code` 已去掉唯一约束
   - 已新增迁移脚本：`drizzle/0004_product_code_repeatable.sql`
@@ -303,3 +389,13 @@
   - 如后续存储量增长明显，需要补“替换/删除商品后的延迟清理任务”。
 - 当前上传组件已支持多图上传，但未实现前端拖拽排序。
   - 如后续要求精确控制主图顺序，需要补排序交互与提交顺序同步。
+
+## 最近变更补充
+- 统计模块已拆分为 `销售统计` 与 `成本统计` 两组接口。
+- 成本统计口径已从“订单成本”调整为“录入成本价视角”，不依赖订单也不依赖当前库存：
+  - 总成本 = 所有已录入规格 `cost_price` 汇总
+  - 分类成本 = 分类下所有规格 `cost_price` 汇总
+  - 商品成本排行 = 按规格返回 `stock / costPrice / totalCost`，其中 `totalCost` 当前等于 `costPrice`，排序按 `costPrice`
+- 销售统计仍按已支付订单统计；成本统计与销售统计已明确解耦。
+- 统计、客户、订单模块都已补数据库迁移缺失时的兼容读取逻辑，但正式上线这版客户/年龄段/成本快照能力前仍应执行迁移 `drizzle/0005_customer_statistics.sql`。
+- 本轮已执行 `bun run build` 与 `bun test` 验证通过。

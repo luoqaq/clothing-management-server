@@ -13,6 +13,7 @@ import { createProductsRoutes } from './modules/products/products.routes';
 import { createOrdersRoutes } from './modules/orders/orders.routes';
 import { createStatisticsRoutes } from './modules/statistics/statistics.routes';
 import { createMobileRoutes } from './modules/mobile/mobile.routes';
+import { createCustomersRoutes } from './modules/customers/customers.routes';
 
 const app = new Hono();
 const PORT = parseInt(Bun.env.PORT || '3000');
@@ -47,6 +48,7 @@ async function initializeApp() {
   app.route('/api/assets', createAssetsRoutes());
   app.route('/api/products', createProductsRoutes(db));
   app.route('/api/orders', createOrdersRoutes(db));
+  app.route('/api/customers', createCustomersRoutes(db));
   app.route('/api/statistics', createStatisticsRoutes(db));
   app.route('/api/mobile', createMobileRoutes(db));
 

@@ -56,6 +56,8 @@ export class ProductsService {
   private normalizeSpecification(row: any): ProductSpecification {
     const stock = Number(row.stock ?? 0);
     const reservedStock = Number(row.reservedStock ?? 0);
+    const cumulativeInboundQuantity = Number(row.cumulativeInboundQuantity ?? row.stock ?? 0);
+    const cumulativeCostAmount = Number(row.cumulativeCostAmount ?? 0);
 
     return {
       id: Number(row.id),
@@ -69,6 +71,8 @@ export class ProductsService {
       stock,
       reservedStock,
       availableStock: Math.max(stock - reservedStock, 0),
+      cumulativeInboundQuantity,
+      cumulativeCostAmount,
       status: row.status,
       createdAt: String(row.createdAt),
       updatedAt: String(row.updatedAt),
@@ -258,6 +262,8 @@ export class ProductsService {
         costPrice: String(item.costPrice),
         stock: item.stock,
         reservedStock: item.reservedStock ?? 0,
+        cumulativeInboundQuantity: item.stock,
+        cumulativeCostAmount: String(item.stock * item.costPrice),
         status: item.status ?? 'active',
       }))
     );
@@ -324,6 +330,8 @@ export class ProductsService {
           costPrice: String(item.costPrice),
           stock: item.stock,
           reservedStock: item.reservedStock ?? 0,
+          cumulativeInboundQuantity: item.cumulativeInboundQuantity ?? item.stock,
+          cumulativeCostAmount: String(item.cumulativeCostAmount ?? item.stock * item.costPrice),
           status: item.status ?? 'active',
         }))
       );
@@ -350,9 +358,19 @@ export class ProductsService {
       return null;
     }
 
+    const currentStock = Number(specification.stock ?? 0);
+    const increaseAmount = Math.max(stock - currentStock, 0);
+    const currentCumulativeInboundQuantity = Number(specification.cumulativeInboundQuantity ?? currentStock);
+    const currentCumulativeCostAmount = Number(specification.cumulativeCostAmount ?? 0);
+    const costPrice = Number(specification.costPrice ?? 0);
+
     await this.db
       .update(schema.productSkus)
-      .set({ stock })
+      .set({
+        stock,
+        cumulativeInboundQuantity: currentCumulativeInboundQuantity + increaseAmount,
+        cumulativeCostAmount: String(currentCumulativeCostAmount + increaseAmount * costPrice),
+      })
       .where(eq(schema.productSkus.id, specificationId));
 
     return this.getProduct(Number(specification.productId));
