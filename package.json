@@ -13,6 +13,8 @@
     "db:push": "bunx drizzle-kit push",
     "db:generate": "bunx drizzle-kit generate",
     "db:migrate": "bunx drizzle-kit migrate",
+    "db:check-sql": "bash scripts/check_pending_migrations.sh",
+    "db:apply-sql": "bash scripts/apply_sql_migrations.sh",
     "db:seed": "bun run src/db/seed.ts",
     "test": "bun test",
     "lint": "bun run eslint . --ext .ts",

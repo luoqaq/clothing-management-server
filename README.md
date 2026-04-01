@@ -58,11 +58,28 @@ CORS_ORIGIN=http://localhost:5173
 # 推送 schema 到数据库
 bun run db:push
 
-# 或使用 migrate (如果有迁移文件)
+# 本地开发可使用 migrate（如果有迁移文件）
 bun run db:migrate
 
 # 初始化种子数据
 bun run db:seed
+```
+
+生产环境不建议直接依赖 `bun run db:migrate`。当前仓库标准做法是：
+
+1. 继续使用 `bun run db:generate` 生成 `drizzle/*.sql`
+2. 在测试库先验证 SQL
+3. 在线上显式执行 SQL 文件
+4. 执行后补写 `__drizzle_migrations`
+
+推荐使用仓库脚本：
+
+```bash
+# 查看哪些 SQL 还没记录到 __drizzle_migrations
+npm run db:check-sql
+
+# 显式执行指定 migration SQL，并自动补 migration 记录
+npm run db:apply-sql -- drizzle/0005_customer_statistics.sql
 ```
 
 ### 4. 启动开发服务器
@@ -188,8 +205,14 @@ bun run db:push
 # 生成迁移文件
 bun run db:generate
 
-# 运行迁移
+# 本地开发运行迁移
 bun run db:migrate
+
+# 检查待执行 SQL 迁移
+npm run db:check-sql
+
+# 显式执行指定 SQL 迁移并补 __drizzle_migrations
+npm run db:apply-sql -- drizzle/0005_customer_statistics.sql
 
 # 初始化数据
 bun run db:seed

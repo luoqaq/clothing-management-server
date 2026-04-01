@@ -97,10 +97,11 @@ deploy_server() {
   SERVER_AFTER="$(git rev-parse HEAD)"
   "${BUN_BIN}" install --frozen-lockfile
   if has_migration_changes "${SERVER_BEFORE}" "${SERVER_AFTER}"; then
-    echo "==> Migration files changed, running db:migrate"
-    "${BUN_BIN}" run db:migrate
-  else
-    echo "==> No migration file changes, skipping db:migrate"
+    echo "==> Migration files changed. Manual SQL migration is required before backend restart." >&2
+    echo "==> Check pending migrations: cd ${SERVER_DIR} && bash scripts/check_pending_migrations.sh" >&2
+    echo "==> Apply explicitly:      cd ${SERVER_DIR} && bash scripts/apply_sql_migrations.sh drizzle/000x.sql" >&2
+    echo "==> Re-run release after the SQL migration completes." >&2
+    return 2
   fi
   restart_backend
   echo "Backend updated: ${SERVER_BEFORE} -> ${SERVER_AFTER}"

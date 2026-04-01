@@ -97,9 +97,18 @@ sudo -u clothing vim /var/clothing/server/.env
 
 ```bash
 sudo -u clothing bash -lc "cd /var/clothing/server && /home/clothing/.bun/bin/bun install"
-sudo -u clothing bash -lc "cd /var/clothing/server && /home/clothing/.bun/bin/bun run db:push"
+sudo -u clothing bash -lc "cd /var/clothing/server && npm run db:check-sql"
+sudo -u clothing bash -lc "cd /var/clothing/server && npm run db:apply-sql -- drizzle/0000_spicy_guardian.sql"
 sudo -u clothing bash -lc "cd /var/clothing/server && /home/clothing/.bun/bin/bun run db:seed"
 ```
+
+说明：
+
+- 生产环境默认采用“显式 SQL migration”策略，不再依赖 `bun run db:migrate`
+- 日常开发仍可使用 Drizzle 生成 `drizzle/*.sql`
+- 上线时先用 `npm run db:check-sql` 检查待执行文件
+- 再显式执行对应 SQL：`npm run db:apply-sql -- drizzle/000x.sql`
+- 该脚本会在 SQL 执行成功后自动补写 `__drizzle_migrations`
 
 安装 systemd 服务：
 
@@ -182,10 +191,16 @@ sudo bash /var/clothing/server/deploy/release.sh all
 ```
 
 - `admin`：只更新前端并重新构建
-- `server`：只更新后端并按需执行迁移、重启服务
+- `server`：只更新后端；如检测到 migration 变更，会中断并提示先手动执行 SQL migration
 - `all`：按“前端 -> 后端”执行完整发版；默认值也是 `all`
 
-如果仍然以 `db:push` 为主，先把 `release.sh` 中的迁移命令改成实际采用的数据库更新命令，再上线。
+推荐发版顺序：
+
+1. `git pull --ff-only`
+2. `npm run db:check-sql`
+3. `npm run db:apply-sql -- drizzle/000x.sql`
+4. `bash deploy/release.sh server`
+5. `bash deploy/release.sh admin`
 
 ## 10. HTTPS
 

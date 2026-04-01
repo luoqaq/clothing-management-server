@@ -3,6 +3,28 @@
 最近更新：2026-04-01
 
 ## 会话更新（2026-04-01）
+- 已正式将生产数据库迁移策略收敛为“方案 A”：
+  - 继续使用 `drizzle-kit generate` 生成 `drizzle/*.sql`
+  - 生产环境不再默认依赖 `bun run db:migrate`
+  - 生产环境统一改为显式执行 SQL，再补 `__drizzle_migrations`
+- 已新增标准迁移脚本：
+  - `scripts/check_pending_migrations.sh`
+  - `scripts/apply_sql_migrations.sh`
+- 已新增 npm 入口：
+  - `npm run db:check-sql`
+  - `npm run db:apply-sql -- drizzle/000x.sql`
+- 已更新 `deploy/release.sh`：
+  - 后端发布检测到 `drizzle/*.sql` 或 `drizzle/meta/*` 变更时，不再自动执行 `db:migrate`
+  - 会直接中断并提示先手动执行 SQL migration，再重新发布后端
+- 已更新 `README.md` 与 `DEPLOYMENT.md`，统一文档口径为显式 SQL 迁移。
+- 本次验证已执行：
+  - `bash -n scripts/apply_sql_migrations.sh` 通过
+  - `bash -n scripts/check_pending_migrations.sh` 通过
+  - `bash -n deploy/release.sh` 通过
+  - `npm run db:check-sql -- --help` 通过
+  - `npm run db:apply-sql -- --help` 通过
+
+## 会话更新（2026-04-01）
 - 已新增累计入库成本模型：
   - `product_skus.cumulative_inbound_quantity`
   - `product_skus.cumulative_cost_amount`
