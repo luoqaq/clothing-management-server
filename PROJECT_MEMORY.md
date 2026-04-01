@@ -1,6 +1,18 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-03-31
+最近更新：2026-04-01
+
+## 会话更新（2026-04-01）
+- 已收敛后端锁文件与发布入口的漂移问题：
+  - `package.json` 已显式声明 `packageManager=bun@1.3.11`
+  - 本地重新执行 `bun install` 后，已把 `openai`、`qcloud-cos-sts` 及其传递依赖写回 `bun.lock`
+  - `deploy/release.sh` 已改为在发布前检查工作区是否干净，脏工作区会直接报错退出
+  - 后端依赖安装已改为 `bun install --frozen-lockfile`，避免服务器继续改写 `bun.lock`
+- 本次验证已执行：
+  - `bash -n deploy/release.sh` 通过
+  - `bun run build` 通过
+- 注意：
+  - 当前生产机 `/var/clothing/server` 仍遗留历史 `bun.lock` 漂移与 stash 记录；下次发布前需先同步本次提交并清理旧漂移，否则会被新的脏工作区检查直接拦下
 
 ## 会话更新（2026-03-31）
 - 已将后端 AI 商品导入接口推送到远端主分支：

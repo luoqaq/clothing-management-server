@@ -20,6 +20,18 @@ else
   NPM_BIN="npm"
 fi
 
+require_clean_repo() {
+  local repo_dir="$1"
+  local repo_name="$2"
+
+  cd "$repo_dir"
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "${repo_name} repo is dirty, aborting deploy." >&2
+    git status --short >&2
+    return 1
+  fi
+}
+
 restart_backend() {
   local old_pid=""
   old_pid="$(pgrep -f '^/home/clothing/.bun/bin/bun src/index.ts$' | head -n 1 || true)"
@@ -41,15 +53,15 @@ restart_backend() {
 }
 
 echo "==> Updating frontend"
-cd "$ADMIN_DIR"
+require_clean_repo "$ADMIN_DIR" "Frontend"
 git pull --ff-only
-"${NPM_BIN}" install
+"${NPM_BIN}" ci
 "${NPM_BIN}" run build
 
 echo "==> Updating backend"
-cd "$SERVER_DIR"
+require_clean_repo "$SERVER_DIR" "Backend"
 git pull --ff-only
-"${BUN_BIN}" install
+"${BUN_BIN}" install --frozen-lockfile
 "${BUN_BIN}" run db:migrate
 restart_backend
 
