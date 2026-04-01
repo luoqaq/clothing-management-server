@@ -8,9 +8,11 @@
   - 本地重新执行 `bun install` 后，已把 `openai`、`qcloud-cos-sts` 及其传递依赖写回 `bun.lock`
   - `deploy/release.sh` 已改为在发布前检查工作区是否干净，脏工作区会直接报错退出
   - 后端依赖安装已改为 `bun install --frozen-lockfile`，避免服务器继续改写 `bun.lock`
+  - `deploy/release.sh` 已进一步改为仅在检测到 `drizzle/*.sql` 或 `drizzle/meta/*` 变更时才执行 `db:migrate`
 - 本次验证已执行：
   - `bash -n deploy/release.sh` 通过
   - `bun run build` 通过
+  - 已验证“无 migration 文件差异时”为跳过迁移分支
 - 注意：
   - 当前生产机 `/var/clothing/server` 仍遗留历史 `bun.lock` 漂移与 stash 记录；下次发布前需先同步本次提交并清理旧漂移，否则会被新的脏工作区检查直接拦下
 

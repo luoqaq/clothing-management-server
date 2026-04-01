@@ -32,6 +32,17 @@ require_clean_repo() {
   fi
 }
 
+has_migration_changes() {
+  local old_ref="$1"
+  local new_ref="$2"
+
+  if [ "$old_ref" = "$new_ref" ]; then
+    return 1
+  fi
+
+  git diff --name-only "${old_ref}..${new_ref}" -- 'drizzle/*.sql' 'drizzle/meta/*' | grep -q .
+}
+
 restart_backend() {
   local old_pid=""
   old_pid="$(pgrep -f '^/home/clothing/.bun/bin/bun src/index.ts$' | head -n 1 || true)"
@@ -54,16 +65,28 @@ restart_backend() {
 
 echo "==> Updating frontend"
 require_clean_repo "$ADMIN_DIR" "Frontend"
+ADMIN_BEFORE="$(git rev-parse HEAD)"
 git pull --ff-only
+ADMIN_AFTER="$(git rev-parse HEAD)"
+"${NPM_BIN}" --version
 "${NPM_BIN}" ci
 "${NPM_BIN}" run build
+echo "Frontend updated: ${ADMIN_BEFORE} -> ${ADMIN_AFTER}"
 
 echo "==> Updating backend"
 require_clean_repo "$SERVER_DIR" "Backend"
+SERVER_BEFORE="$(git rev-parse HEAD)"
 git pull --ff-only
+SERVER_AFTER="$(git rev-parse HEAD)"
 "${BUN_BIN}" install --frozen-lockfile
-"${BUN_BIN}" run db:migrate
+if has_migration_changes "${SERVER_BEFORE}" "${SERVER_AFTER}"; then
+  echo "==> Migration files changed, running db:migrate"
+  "${BUN_BIN}" run db:migrate
+else
+  echo "==> No migration file changes, skipping db:migrate"
+fi
 restart_backend
+echo "Backend updated: ${SERVER_BEFORE} -> ${SERVER_AFTER}"
 
 echo "==> Deployment finished"
 systemctl status "$SERVICE_NAME" --no-pager
