@@ -19,6 +19,7 @@ export function createMobileRoutes(db: MySql2Database<typeof schema>) {
   mobile.get('/products', (c) => controller.getProducts(c));
   mobile.get('/products/:id', (c) => controller.getProduct(c));
   mobile.get('/product-options', (c) => controller.getProductOptions(c));
+  mobile.get('/customers/age-buckets', (c) => controller.getAgeBuckets(c));
   mobile.post('/products', requireRoles(['admin']), (c) => controller.createProduct(c));
   mobile.patch('/products/:id/images', requireRoles(['admin']), (c) => controller.updateProductImages(c));
   mobile.get('/orders', (c) => controller.getOrders(c));

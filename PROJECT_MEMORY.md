@@ -3,6 +3,14 @@
 最近更新：2026-04-04
 
 ## 会话更新（2026-04-04）
+- 已为员工小程序补充客户年龄段只读接口：
+  - 新增 `GET /api/mobile/customers/age-buckets`
+  - 已复用 `CustomersService.getAgeBuckets()`，登录后的移动端账号均可读取年龄段配置
+- 该改动用于配合小程序录单页同步后台最近新增的“客户邮箱 / 年龄段”录单逻辑
+- 本次验证已执行：
+  - `npm run build` 通过
+
+## 会话更新（2026-04-04）
 - 已完成生产站点 `clothing.chuchu9.cn` 的 HTTPS 落地：
   - 通过 `certbot certonly --webroot -w /var/clothing/admin/dist -d clothing.chuchu9.cn` 签发 Let's Encrypt 证书
   - 证书路径：

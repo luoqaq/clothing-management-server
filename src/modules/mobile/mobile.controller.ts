@@ -110,6 +110,16 @@ export class MobileController {
     }
   }
 
+  async getAgeBuckets(c: Context) {
+    try {
+      const result = await this.service.getCustomersService().getAgeBuckets();
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Get mobile age buckets error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
   async createProduct(c: Context) {
     try {
       const payload = productSchema.parse(await c.req.json());
