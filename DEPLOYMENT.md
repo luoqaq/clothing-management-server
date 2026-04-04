@@ -133,12 +133,12 @@ sudo -u clothing bash -lc "cd /var/clothing/admin && npm run build"
 
 ## 7. Nginx 配置
 
-安装站点配置：
+当前生产机是 OpenCloudOS，Nginx 实际使用 `/etc/nginx/conf.d/*.conf`，不要再按 Debian/Ubuntu 的 `sites-available` / `sites-enabled` 目录去放配置。
+
+先安装 HTTP 版站点配置：
 
 ```bash
-sudo cp /var/clothing/server/deploy/nginx/clothing.chuchu9.cn.conf /etc/nginx/sites-available/clothing.chuchu9.cn.conf
-sudo ln -sf /etc/nginx/sites-available/clothing.chuchu9.cn.conf /etc/nginx/sites-enabled/clothing.chuchu9.cn.conf
-sudo rm -f /etc/nginx/sites-enabled/default
+sudo cp /var/clothing/server/deploy/nginx/clothing.chuchu9.cn.conf /etc/nginx/conf.d/clothing.chuchu9.cn.conf
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -204,10 +204,45 @@ sudo bash /var/clothing/server/deploy/release.sh all
 
 ## 10. HTTPS
 
-当前配置先跑通 HTTP。后续补 HTTPS 时：
+当前仓库中的 `deploy/nginx/clothing.chuchu9.cn.conf` 已是 HTTPS 版模板，包含：
 
-- 开放安全组 `443`
-- 申请证书
-- 在 Nginx 增加 `listen 443 ssl`
-- 将 `80` 重定向到 `443`
-- 将 `.env` 中 `CORS_ORIGIN` 改成 `https://clothing.chuchu9.cn`
+- `80 -> 443` 强制跳转
+- `/.well-known/acme-challenge/` 保留给 Let's Encrypt HTTP 校验
+- `443 ssl http2`
+- `/api/` 继续反代到 `127.0.0.1:3000`
+
+线上落地顺序：
+
+1. 在腾讯云安全组放行 `443/tcp`
+2. 先保持域名 `clothing.chuchu9.cn` 指向当前服务器
+3. 安装证书工具并签发证书
+4. 覆盖 `/etc/nginx/conf.d/clothing.chuchu9.cn.conf`
+5. `nginx -t && systemctl reload nginx`
+6. 验证公网 `https://clothing.chuchu9.cn`
+
+OpenCloudOS 上推荐命令：
+
+```bash
+sudo dnf install -y certbot python3-certbot-nginx
+sudo certbot certonly --webroot -w /var/clothing/admin/dist -d clothing.chuchu9.cn
+sudo cp /var/clothing/server/deploy/nginx/clothing.chuchu9.cn.conf /etc/nginx/conf.d/clothing.chuchu9.cn.conf
+sudo nginx -t
+sudo systemctl reload nginx
+curl -I https://clothing.chuchu9.cn
+curl -I https://clothing.chuchu9.cn/api/auth/me
+```
+
+证书路径按 Certbot 默认值写在模板里：
+
+```text
+/etc/letsencrypt/live/clothing.chuchu9.cn/fullchain.pem
+/etc/letsencrypt/live/clothing.chuchu9.cn/privkey.pem
+```
+
+如果后续前端或浏览器直接跨域访问后端，再把后端 `.env` 里的 `CORS_ORIGIN` 调整为：
+
+```env
+CORS_ORIGIN=https://clothing.chuchu9.cn
+```
+
+然后重启后端服务。当前前端生产环境走同源 `/api` 代理，单就后台站点本身而言，这一步通常不阻塞 HTTPS 切换。

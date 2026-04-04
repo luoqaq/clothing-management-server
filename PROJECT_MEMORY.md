@@ -1,6 +1,44 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-04-01
+最近更新：2026-04-04
+
+## 会话更新（2026-04-04）
+- 已完成生产站点 `clothing.chuchu9.cn` 的 HTTPS 落地：
+  - 通过 `certbot certonly --webroot -w /var/clothing/admin/dist -d clothing.chuchu9.cn` 签发 Let's Encrypt 证书
+  - 证书路径：
+    - `/etc/letsencrypt/live/clothing.chuchu9.cn/fullchain.pem`
+    - `/etc/letsencrypt/live/clothing.chuchu9.cn/privkey.pem`
+  - 当前证书有效期至 `2026-07-03`
+- 线上 Nginx 已切换为 HTTPS 配置：
+  - `http://clothing.chuchu9.cn` 现返回 `301` 跳转到 `https://clothing.chuchu9.cn/`
+  - `https://clothing.chuchu9.cn` 返回 `200`
+  - `https://clothing.chuchu9.cn/api/auth/me` 未登录返回 `401`，说明前端、Nginx 和后端反代链路正常
+  - 线上当前监听 `80` 和 `443`
+- 已启用自动续期：
+  - `certbot-renew.timer` 已 `enable --now`
+- 额外注意：
+  - 线上 `/var/clothing/server` 仓库中的 `deploy/nginx/clothing.chuchu9.cn.conf` 仍是旧 HTTP 版本
+  - 本次实际生效配置来自本地工作区上传后覆盖 `/etc/nginx/conf.d/clothing.chuchu9.cn.conf`
+  - 后续应把本地改动提交并同步到远端仓库，避免以后再从旧模板覆盖回 HTTP
+
+## 会话更新（2026-04-03）
+- 已为生产站点 `clothing.chuchu9.cn` 准备 HTTPS 落地模板：
+  - `deploy/nginx/clothing.chuchu9.cn.conf` 已改为双 `server` 配置
+  - `80` 保留 `/.well-known/acme-challenge/`，其余请求统一跳转到 `https`
+  - `443` 已补 `ssl`、`http2`、Let's Encrypt 证书路径与原有 `/api` 反代
+- 已修正文档中的生产机 Nginx 目录假设：
+  - 当前 OpenCloudOS 生产机实际使用 `/etc/nginx/conf.d/clothing.chuchu9.cn.conf`
+  - 不是旧文档中的 `sites-available/sites-enabled` 布局
+- 本次线上只读核验结果：
+  - `ssh clothing-prod 'whoami && hostname'` 返回 `clothing / VM-0-15-opencloudos`
+  - `dig +short clothing.chuchu9.cn` 返回 `101.35.255.39`
+  - 公网 `http://clothing.chuchu9.cn` 当前返回 `200`
+  - 线上仅监听 `80`，尚未监听 `443`
+  - 当前服务器尚未发现 `clothing.chuchu9.cn` 的现成证书文件
+- 本次验证已执行：
+  - 使用临时自签证书对更新后的 `deploy/nginx/clothing.chuchu9.cn.conf` 执行 `nginx -t`，语法通过
+- 当前阻塞：
+  - `clothing` 用户无免密 `sudo`，实际签发证书、覆盖 `/etc/nginx/conf.d` 和 reload Nginx 仍需 root 权限
 
 ## 会话更新（2026-04-01）
 - 已正式将生产数据库迁移策略收敛为“方案 A”：
