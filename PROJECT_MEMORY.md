@@ -3,6 +3,18 @@
 最近更新：2026-04-05
 
 ## 会话更新（2026-04-05）
+- 已将订单时间序列化修复推送到远端主分支：
+  - 当前提交：`ded80d9`
+- 已按标准入口完成生产后端与前端联合发布：
+  - 执行入口：`cd /var/clothing/server && bash deploy/release.sh all`
+  - 线上后端仓库 `/var/clothing/server` 已更新到 `ded80d9`
+  - 线上前端仓库 `/var/clothing/admin` 已更新到 `19d2337`
+- 本次线上验证已执行：
+  - `curl http://127.0.0.1:3000/health` 返回成功 JSON
+  - `curl -I https://clothing.chuchu9.cn` 返回 `200`
+  - `curl -i https://clothing.chuchu9.cn/api/auth/me` 未登录返回 `401`
+
+## 会话更新（2026-04-05）
 - 已修复订单接口时间序列化受服务端时区影响的问题：
   - 根因是订单接口此前直接对 MySQL 返回的 `Date` 做 `String(...)` 序列化
   - 当服务端运行时区与门店使用时区不一致时，前端 `dayjs` 解析后会出现下单时间偏移（典型表现为多 8 小时）
