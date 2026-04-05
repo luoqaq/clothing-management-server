@@ -1,36 +1,21 @@
 import { describe, expect, it } from 'bun:test';
-import { ProductsService } from './products.service';
-import type { Product } from '../../types';
 import * as schema from '../../db/schema';
+import { ProductsService } from './products.service';
 
-function createProductsDbMock(products: Product[]) {
+function createProductsDbMock(productSkus: any[], products: any[]) {
   return {
-    select(fields?: unknown) {
+    select() {
       return {
         from(table: unknown) {
-          if (fields) {
+          if (table === schema.productSkus) {
             return {
-              where: async () => [{ count: products.length }],
+              where: async () => productSkus,
             };
           }
 
           if (table === schema.products) {
             return {
-              where: () => ({
-                orderBy: () => ({
-                  limit: (pageSize: number) => ({
-                    offset: async (offset: number) =>
-                      products.slice(offset, offset + pageSize),
-                  }),
-                }),
-              }),
-            };
-          }
-
-          if (table === schema.productCategories || table === schema.suppliers || table === schema.productSkus) {
-            return {
-              where: async () => [],
-              orderBy: async () => [],
+              where: async () => products,
             };
           }
 
@@ -43,77 +28,199 @@ function createProductsDbMock(products: Product[]) {
   };
 }
 
-describe('ProductsService.getProducts', () => {
-  it('returns paginated items and total count', async () => {
-    const products: Product[] = [
-      {
-        id: 1,
-        productCode: 'KH001',
-        name: 'T-Shirt A',
-        description: 'A',
-        categoryId: 1,
-        supplierId: null,
-        category: undefined,
-        supplier: null,
-        mainImages: [],
-        detailImages: [],
-        specifications: [],
-        specCount: 0,
-        totalStock: 0,
-        reservedStock: 0,
-        availableStock: 0,
-        minPrice: 0,
-        maxPrice: 0,
-        status: 'active',
-        tags: [],
-        createdAt: '2026-01-01',
-        updatedAt: '2026-01-01',
-      },
-      {
-        id: 2,
-        productCode: 'KH002',
-        name: 'T-Shirt B',
-        description: 'B',
-        categoryId: 1,
-        supplierId: null,
-        category: undefined,
-        supplier: null,
-        mainImages: [],
-        detailImages: [],
-        specifications: [],
-        specCount: 0,
-        totalStock: 0,
-        reservedStock: 0,
-        availableStock: 0,
-        minPrice: 0,
-        maxPrice: 0,
-        status: 'active',
-        tags: [],
-        createdAt: '2026-01-02',
-        updatedAt: '2026-01-02',
-      },
-    ];
+function createUpdateProductDbMock() {
+  const initialProductRow = {
+    id: 7,
+    productCode: 'TOP001',
+    name: '法式上衣',
+    description: '',
+    categoryId: 1,
+    supplierId: null,
+    mainImages: ['https://img.example.com/1.jpg'],
+    detailImages: [],
+    tags: [],
+    status: 'active',
+    createdAt: '2026-04-04 12:00:00',
+    updatedAt: '2026-04-04 12:00:00',
+  };
+  const initialSkuRows = [
+    {
+      id: 12,
+      productId: 7,
+      skuCode: 'TOP001-M-白-P7',
+      barcode: 'SKU0000000012',
+      color: '白色',
+      size: 'M',
+      salePrice: '199.00',
+      costPrice: '50.00',
+      stock: 5,
+      reservedStock: 1,
+      cumulativeInboundQuantity: 8,
+      cumulativeCostAmount: '400.00',
+      status: 'active',
+      createdAt: '2026-04-04 12:00:00',
+      updatedAt: '2026-04-04 12:00:00',
+    },
+  ];
 
-    const dbMock = createProductsDbMock(products);
-    const service = new ProductsService(dbMock as any);
+  let productRow = { ...initialProductRow };
+  let skuRows = [...initialSkuRows];
+  let insertedSkuRows: any[] = [];
 
-    const result = await service.getProducts({ page: 2, pageSize: 1 });
+  const db = {
+    select() {
+      return {
+        from(table: unknown) {
+          const readRows = async () => {
+            if (table === schema.products) {
+              return [productRow];
+            }
 
-    expect(result.total).toBe(2);
-    expect(result.items.length).toBe(1);
-    expect(result.items[0].id).toBe(2);
+            if (table === schema.productSkus) {
+              return skuRows;
+            }
+
+            return [];
+          };
+
+          return {
+            where: readRows,
+            orderBy: readRows,
+            limit() {
+              return this;
+            },
+            offset() {
+              return this;
+            },
+          };
+        },
+      };
+    },
+    update(table: unknown) {
+      return {
+        set(values: Record<string, unknown>) {
+          if (table === schema.products) {
+            productRow = { ...productRow, ...values };
+          }
+
+          if (table === schema.productSkus && insertedSkuRows.length > 0) {
+            insertedSkuRows = insertedSkuRows.map((row) => ({
+              ...row,
+              ...values,
+            }));
+            skuRows = insertedSkuRows;
+          }
+
+          return {
+            where: async () => undefined,
+          };
+        },
+      };
+    },
+    delete(table: unknown) {
+      return {
+        where: async () => {
+          if (table === schema.productSkus) {
+            skuRows = [];
+          }
+        },
+      };
+    },
+    insert(table: unknown) {
+      return {
+        values(values: any[]) {
+          if (table === schema.productSkus) {
+            insertedSkuRows = values.map((row, index) => ({
+              ...row,
+              id: initialSkuRows[index]?.id ?? index + 1,
+            }));
+            skuRows = insertedSkuRows;
+          }
+
+          return {
+            $returningId: async () => [{ id: productRow.id }],
+          };
+        },
+      };
+    },
+  };
+
+  return { db, getInsertedSkuRows: () => insertedSkuRows };
+}
+
+describe('ProductsService', () => {
+  it('builds stable barcode values from sku id', () => {
+    expect(ProductsService.buildBarcodeValue(12)).toBe('SKU0000000012');
   });
-});
 
-describe('ProductsService sku code generation', () => {
-  it('builds unique sku codes for repeated product codes with different product ids', () => {
-    const service = new ProductsService({} as any);
+  it('returns scanned sku info without cost fields', async () => {
+    const service = new ProductsService(
+      createProductsDbMock(
+        [
+          {
+            id: 12,
+            productId: 7,
+            barcode: 'SKU0000000012',
+            skuCode: 'TOP001-M-白-P7',
+            color: '白色',
+            size: 'M',
+            salePrice: '199.00',
+            stock: 5,
+            reservedStock: 1,
+            status: 'active',
+          },
+        ],
+        [
+          {
+            id: 7,
+            productCode: 'TOP001',
+            name: '法式上衣',
+            status: 'active',
+            mainImages: ['https://img.example.com/1.jpg'],
+          },
+        ]
+      ) as any
+    );
 
-    const firstSkuCode = (service as any).buildSkuCode(101, 'KH001', 'M', '白色');
-    const secondSkuCode = (service as any).buildSkuCode(102, 'KH001', 'M', '白色');
+    const result = await service.getScannedSkuByCode('SKU0000000012');
 
-    expect(firstSkuCode).toBe('KH001-M-白色-P101');
-    expect(secondSkuCode).toBe('KH001-M-白色-P102');
-    expect(firstSkuCode).not.toBe(secondSkuCode);
+    expect(result?.skuId).toBe(12);
+    expect(result?.productId).toBe(7);
+    expect(result?.availableStock).toBe(4);
+    expect(result?.barcode).toBe('SKU0000000012');
+    expect('costPrice' in (result as Record<string, unknown>)).toBe(false);
+  });
+
+  it('preserves cumulative inbound cost when updating specifications', async () => {
+    const { db, getInsertedSkuRows } = createUpdateProductDbMock();
+    const service = new ProductsService(db as any);
+    service.getCategories = async () => [];
+    service.getSuppliers = async () => [];
+
+    await service.updateProduct(7, {
+      specifications: [
+        {
+          id: 12,
+          productId: 7,
+          skuCode: 'TOP001-M-白-P7',
+          barcode: 'SKU0000000012',
+          color: '白色',
+          size: 'M',
+          salePrice: 199,
+          costPrice: 50,
+          stock: 10,
+          reservedStock: 1,
+          availableStock: 0,
+          cumulativeInboundQuantity: 0,
+          cumulativeCostAmount: 0,
+          status: 'active',
+          createdAt: '',
+          updatedAt: '',
+        } as any,
+      ],
+    });
+
+    expect(getInsertedSkuRows()[0]?.cumulativeInboundQuantity).toBe(8);
+    expect(getInsertedSkuRows()[0]?.cumulativeCostAmount).toBe('400');
   });
 });

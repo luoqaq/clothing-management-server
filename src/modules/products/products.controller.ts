@@ -73,12 +73,28 @@ export class ProductsController {
     }
   }
 
+  async getProductLabels(c: Context) {
+    try {
+      const id = parseInt(c.req.param('id') || '0', 10);
+      const labels = await this.service.getProductLabels(id);
+
+      if (!labels) {
+        return c.json(error('商品不存在'), 404);
+      }
+
+      return c.json(success(labels));
+    } catch (err: any) {
+      logger.error('Get product labels error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
   async createProduct(c: Context) {
     try {
       const data = await c.req.json();
-      productSchema.parse(data);
+      const payload = productSchema.parse(data);
 
-      const product = await this.service.createProduct(data);
+      const product = await this.service.createProduct(payload as any);
       return c.json(success(product), 201);
     } catch (err: any) {
       logger.error('Create product error:', err);
@@ -131,9 +147,9 @@ export class ProductsController {
     try {
       const id = parseInt(c.req.param('id') || '0', 10);
       const data = await c.req.json();
-      productSchema.partial().parse(data);
+      const payload = productSchema.partial().parse(data);
 
-      const product = await this.service.updateProduct(id, data);
+      const product = await this.service.updateProduct(id, payload as any);
       if (!product) {
         return c.json(error('商品不存在'), 404);
       }

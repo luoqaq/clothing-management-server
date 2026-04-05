@@ -46,7 +46,7 @@ export const productSkus = mysqlTable('product_skus', {
   id: serial('id').primaryKey(),
   productId: int('product_id').notNull(),
   skuCode: varchar('sku_code', { length: 100 }).notNull().unique(),
-  barcode: varchar('barcode', { length: 100 }),
+  barcode: varchar('barcode', { length: 100 }).notNull().unique(),
   color: varchar('color', { length: 50 }).notNull(),
   size: varchar('size', { length: 50 }).notNull(),
   salePrice: decimal('sale_price', { precision: 10, scale: 2 }).notNull(),

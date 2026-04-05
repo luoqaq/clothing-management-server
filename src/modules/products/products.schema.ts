@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const specificationSchema = z.object({
+  id: z.number().int().optional(),
   skuCode: z.string().optional(),
   barcode: z.string().optional().nullable(),
   color: z.string().min(1, '颜色不能为空'),

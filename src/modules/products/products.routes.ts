@@ -24,6 +24,7 @@ export function createProductsRoutes(db: MySql2Database<typeof schema>) {
   products.put('/suppliers/:id', requireRoles(['admin']), (c) => controller.updateSupplier(c));
   products.delete('/suppliers/:id', requireRoles(['admin']), (c) => controller.deleteSupplier(c));
   products.patch('/specifications/:id/stock', (c) => controller.updateSpecificationStock(c));
+  products.get('/:id/labels', requireRoles(['admin']), (c) => controller.getProductLabels(c));
   products.get('/:id', (c) => controller.getProduct(c));
   products.post('/', requireRoles(['admin']), (c) => controller.createProduct(c));
   products.put('/:id', requireRoles(['admin']), (c) => controller.updateProduct(c));

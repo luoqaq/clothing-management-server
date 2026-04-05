@@ -100,6 +100,34 @@ export class MobileController {
     }
   }
 
+  async getProductByCode(c: Context) {
+    try {
+      const code = c.req.query('code') || '';
+      const product = await this.service.getProductsService().getScannedSkuByCode(code);
+
+      if (!product) {
+        return c.json(error('未找到对应标签商品'), 404);
+      }
+
+      if (product.productStatus !== 'active') {
+        return c.json(error('该商品已下架，暂不可销售'), 409);
+      }
+
+      if (product.status !== 'active') {
+        return c.json(error('该规格已停用，暂不可销售'), 409);
+      }
+
+      if (product.availableStock <= 0) {
+        return c.json(error('该规格当前无可售库存'), 409);
+      }
+
+      return c.json(success(product));
+    } catch (err: any) {
+      logger.error('Get mobile product by code error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
   async getProductOptions(c: Context) {
     try {
       const result = await this.service.getProductOptions(c.get('user')?.role);

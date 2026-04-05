@@ -4,7 +4,9 @@ import type {
   Product,
   ProductCategory,
   ProductFilters,
+  ProductLabelItem,
   ProductSpecification,
+  ScannedSkuProduct,
   Supplier,
 } from '../../types';
 import { isAdminRole } from '../../utils/role';
@@ -26,6 +28,14 @@ type ProductPayload = Omit<
 
 export class ProductsService {
   constructor(private db: any) {}
+
+  static buildBarcodeValue(skuId: number): string {
+    return `SKU${String(skuId).padStart(10, '0')}`;
+  }
+
+  private buildPendingBarcode(productId: number, index: number): string {
+    return `TMP-${productId}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+  }
 
   private firstRow<T>(rows: T[]): T | null {
     return rows[0] ?? null;
@@ -63,7 +73,7 @@ export class ProductsService {
       id: Number(row.id),
       productId: Number(row.productId),
       skuCode: row.skuCode,
-      barcode: row.barcode ?? null,
+      barcode: row.barcode || ProductsService.buildBarcodeValue(Number(row.id)),
       color: row.color,
       size: row.size,
       salePrice: Number(row.salePrice ?? 0),
@@ -77,6 +87,25 @@ export class ProductsService {
       createdAt: String(row.createdAt),
       updatedAt: String(row.updatedAt),
     };
+  }
+
+  private async assignGeneratedBarcodesByProductId(productId: number): Promise<void> {
+    const specificationRows = await this.db
+      .select()
+      .from(schema.productSkus)
+      .where(eq(schema.productSkus.productId, productId));
+
+    for (const specification of specificationRows) {
+      const currentBarcode = String(specification.barcode ?? '').trim();
+      if (currentBarcode && !currentBarcode.startsWith('TMP-')) {
+        continue;
+      }
+
+      await this.db
+        .update(schema.productSkus)
+        .set({ barcode: ProductsService.buildBarcodeValue(Number(specification.id)) })
+        .where(eq(schema.productSkus.id, Number(specification.id)));
+    }
   }
 
   private sanitizeSpecification(specification: ProductSpecification, role?: string): ProductSpecification {
@@ -252,10 +281,10 @@ export class ProductsService {
     }
 
     await this.db.insert(schema.productSkus).values(
-      data.specifications.map((item) => ({
+      data.specifications.map((item, index) => ({
         productId: insertedId,
         skuCode: this.buildSkuCode(insertedId, data.productCode, item.size, item.color),
-        barcode: item.barcode ?? null,
+        barcode: this.buildPendingBarcode(insertedId, index),
         color: item.color,
         size: item.size,
         salePrice: String(item.salePrice),
@@ -267,6 +296,8 @@ export class ProductsService {
         status: item.status ?? 'active',
       }))
     );
+
+    await this.assignGeneratedBarcodesByProductId(insertedId);
 
     const product = await this.getProduct(insertedId);
     if (!product) {
@@ -316,28 +347,119 @@ export class ProductsService {
 
     const nextProductCode = data.productCode ?? existing.productCode;
     const specificationsToPersist = data.specifications ?? existing.specifications;
+    const existingBarcodeMap = new Map(
+      existing.specifications.map((item) => [Number(item.id), item.barcode])
+    );
+    const existingSpecificationMap = new Map(
+      existing.specifications.map((item) => [
+        Number(item.id),
+        {
+          cumulativeInboundQuantity: item.cumulativeInboundQuantity,
+          cumulativeCostAmount: item.cumulativeCostAmount,
+        },
+      ])
+    );
 
     if (data.specifications || data.productCode !== undefined) {
       await this.db.delete(schema.productSkus).where(eq(schema.productSkus.productId, id));
       await this.db.insert(schema.productSkus).values(
-        specificationsToPersist.map((item) => ({
+        specificationsToPersist.map((item, index) => ({
           productId: id,
           skuCode: this.buildSkuCode(id, nextProductCode, item.size, item.color),
-          barcode: item.barcode ?? null,
+          barcode:
+            item.id && existingBarcodeMap.get(Number(item.id))
+              ? existingBarcodeMap.get(Number(item.id))!
+              : this.buildPendingBarcode(id, index),
           color: item.color,
           size: item.size,
           salePrice: String(item.salePrice),
           costPrice: String(item.costPrice),
           stock: item.stock,
           reservedStock: item.reservedStock ?? 0,
-          cumulativeInboundQuantity: item.cumulativeInboundQuantity ?? item.stock,
-          cumulativeCostAmount: String(item.cumulativeCostAmount ?? item.stock * item.costPrice),
+          cumulativeInboundQuantity:
+            item.id && existingSpecificationMap.get(Number(item.id))?.cumulativeInboundQuantity !== undefined
+              ? existingSpecificationMap.get(Number(item.id))?.cumulativeInboundQuantity
+              : item.cumulativeInboundQuantity ?? item.stock,
+          cumulativeCostAmount:
+            item.id && existingSpecificationMap.get(Number(item.id))?.cumulativeCostAmount !== undefined
+              ? String(existingSpecificationMap.get(Number(item.id))?.cumulativeCostAmount)
+              : String(item.cumulativeCostAmount ?? item.stock * item.costPrice),
           status: item.status ?? 'active',
         }))
       );
+      await this.assignGeneratedBarcodesByProductId(id);
     }
 
     return this.getProduct(id);
+  }
+
+  async getProductLabels(productId: number): Promise<ProductLabelItem[] | null> {
+    const product = await this.getProduct(productId, 'admin');
+    if (!product) {
+      return null;
+    }
+
+    return product.specifications.map((specification) => ({
+      skuId: specification.id,
+      productId: product.id,
+      productCode: product.productCode,
+      productName: product.name,
+      barcode: specification.barcode,
+      skuCode: specification.skuCode,
+      color: specification.color,
+      size: specification.size,
+      salePrice: specification.salePrice,
+      image: product.mainImages[0] ?? null,
+    }));
+  }
+
+  async getScannedSkuByCode(code: string): Promise<ScannedSkuProduct | null> {
+    const normalizedCode = String(code ?? '').trim();
+    if (!normalizedCode) {
+      throw new Error('标签码不能为空');
+    }
+
+    const skuRows = await this.db
+      .select()
+      .from(schema.productSkus)
+      .where(eq(schema.productSkus.barcode, normalizedCode));
+    const sku = this.firstRow(skuRows);
+
+    if (!sku) {
+      return null;
+    }
+
+    const productRows = await this.db
+      .select()
+      .from(schema.products)
+      .where(eq(schema.products.id, Number(sku.productId)));
+    const product = this.firstRow(productRows);
+
+    if (!product) {
+      return null;
+    }
+
+    const stock = Number(sku.stock ?? 0);
+    const reservedStock = Number(sku.reservedStock ?? 0);
+    const availableStock = Math.max(stock - reservedStock, 0);
+
+    return {
+      skuId: Number(sku.id),
+      productId: Number(product.id),
+      productCode: product.productCode,
+      productName: product.name,
+      barcode: sku.barcode || ProductsService.buildBarcodeValue(Number(sku.id)),
+      skuCode: sku.skuCode,
+      color: sku.color,
+      size: sku.size,
+      salePrice: Number(sku.salePrice ?? 0),
+      stock,
+      reservedStock,
+      availableStock,
+      status: sku.status,
+      productStatus: product.status,
+      image: Array.isArray(product.mainImages) ? product.mainImages[0] ?? null : null,
+    };
   }
 
   async deleteProduct(id: number): Promise<boolean> {

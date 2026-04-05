@@ -50,6 +50,13 @@
       "when": 1775223000000,
       "tag": "0006_cumulative_inbound_cost",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1775260800000,
+      "tag": "0007_sku_barcode_labels",
+      "breakpoints": true
     }
   ]
 }

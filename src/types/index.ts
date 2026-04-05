@@ -58,7 +58,7 @@ export interface ProductSpecification {
   id: number;
   productId: number;
   skuCode: string;
-  barcode?: string | null;
+  barcode: string;
   color: string;
   size: string;
   salePrice: number;
@@ -246,6 +246,37 @@ export interface ProductSalesRanking {
   cost: number;
   grossProfit: number;
   grossMargin: number;
+}
+
+export interface ProductLabelItem {
+  skuId: number;
+  productId: number;
+  productCode: string;
+  productName: string;
+  barcode: string;
+  skuCode: string;
+  color: string;
+  size: string;
+  salePrice: number;
+  image?: string | null;
+}
+
+export interface ScannedSkuProduct {
+  skuId: number;
+  productId: number;
+  productCode: string;
+  productName: string;
+  barcode: string;
+  skuCode: string;
+  color: string;
+  size: string;
+  salePrice: number;
+  stock: number;
+  reservedStock: number;
+  availableStock: number;
+  status: ProductSpecificationStatus;
+  productStatus: ProductStatus;
+  image?: string | null;
 }
 
 export interface CostProductRankingItem {
