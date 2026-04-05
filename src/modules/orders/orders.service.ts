@@ -19,6 +19,15 @@ export class OrdersService {
     return rows[0] ?? null;
   }
 
+  private formatDateTime(value: unknown): string | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    const formatted = dayjs(value).format('YYYY-MM-DD HH:mm:ss');
+    return formatted === 'Invalid Date' ? undefined : formatted;
+  }
+
   private isSchemaCompatibilityError(error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     return (
@@ -198,11 +207,11 @@ export class OrdersService {
       trackingNumber: orderRow.trackingNumber ?? null,
       cancelReason: orderRow.cancelReason ?? null,
       refundReason: orderRow.refundReason ?? null,
-      paidAt: orderRow.paidAt ? String(orderRow.paidAt) : undefined,
-      shippedAt: orderRow.shippedAt ? String(orderRow.shippedAt) : undefined,
-      deliveredAt: orderRow.deliveredAt ? String(orderRow.deliveredAt) : undefined,
-      createdAt: String(orderRow.createdAt),
-      updatedAt: String(orderRow.updatedAt),
+      paidAt: this.formatDateTime(orderRow.paidAt),
+      shippedAt: this.formatDateTime(orderRow.shippedAt),
+      deliveredAt: this.formatDateTime(orderRow.deliveredAt),
+      createdAt: this.formatDateTime(orderRow.createdAt) ?? '',
+      updatedAt: this.formatDateTime(orderRow.updatedAt) ?? '',
     };
   }
 

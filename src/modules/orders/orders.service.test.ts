@@ -88,5 +88,42 @@ describe('OrdersService.getOrders', () => {
     expect(result.items[0].id).toBe(2);
     expect(Array.isArray((result.items[0] as Order).items)).toBe(true);
   });
-});
 
+  it('formats order datetime fields as stable database-style strings', async () => {
+    const orders = [
+      {
+        id: 1,
+        orderNo: '202604050001',
+        customerName: 'Alice',
+        customerPhone: '13800000001',
+        customerEmail: 'alice@example.com',
+        totalAmount: '199.00',
+        discountAmount: '0.00',
+        finalAmount: '199.00',
+        paymentStatus: 'paid',
+        status: 'pending',
+        address: {},
+        note: null,
+        paymentMethod: 'cash',
+        shippingCompany: null,
+        trackingNumber: null,
+        cancelReason: null,
+        refundReason: null,
+        paidAt: new Date('2026-04-05T11:53:00'),
+        shippedAt: null,
+        deliveredAt: null,
+        createdAt: new Date('2026-04-05T11:53:00'),
+        updatedAt: new Date('2026-04-05T12:10:00'),
+      },
+    ];
+
+    const dbMock = createOrdersDbMock(orders, []);
+    const service = new OrdersService(dbMock as any);
+
+    const result = await service.getOrders({ page: 1, pageSize: 1 });
+
+    expect(result.items[0].createdAt).toBe('2026-04-05 11:53:00');
+    expect(result.items[0].updatedAt).toBe('2026-04-05 12:10:00');
+    expect(result.items[0].paidAt).toBe('2026-04-05 11:53:00');
+  });
+});

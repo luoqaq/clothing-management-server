@@ -1,6 +1,52 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-04-04
+最近更新：2026-04-05
+
+## 会话更新（2026-04-05）
+- 已修复订单接口时间序列化受服务端时区影响的问题：
+  - 根因是订单接口此前直接对 MySQL 返回的 `Date` 做 `String(...)` 序列化
+  - 当服务端运行时区与门店使用时区不一致时，前端 `dayjs` 解析后会出现下单时间偏移（典型表现为多 8 小时）
+- 当前订单接口已统一把 `paidAt / shippedAt / deliveredAt / createdAt / updatedAt` 输出为固定 `YYYY-MM-DD HH:mm:ss` 字符串，避免继续把服务端时区带到前端展示层
+- 本次验证已执行：
+  - `npm test -- src/modules/orders/orders.service.test.ts` 通过
+  - `npm run build` 通过
+
+## 会话更新（2026-04-05）
+- 已为测试数据库 `closthin-system-test` 补齐 SKU 标签码结构：
+  - 已执行 `drizzle/0007_sku_barcode_labels.sql`
+  - 已确认 `product_skus.barcode` 空值清零
+  - 已确认唯一索引 `product_skus_barcode_unique` 存在
+  - 已补写 `__drizzle_migrations` 中对应的 `0007` 哈希记录
+- 本机验证时发现：
+  - 当前 macOS 上的 `mysql` CLI 缺少 `mysql_native_password` 插件，`npm run db:apply-sql` / 直接 `mysql` 连接会报 `ERROR 2059`
+  - 本次改为通过仓库现有 `mysql2` 依赖直连数据库完成 SQL 执行与核验
+- 本次验证已执行：
+  - 数据库侧核验 `product_skus` 共 `107` 条，`barcode` 空值 `0`
+  - 数据库侧核验唯一索引存在
+  - 数据库侧核验 `__drizzle_migrations` 已包含 `0007_sku_barcode_labels.sql` 对应哈希
+
+## 会话更新（2026-04-04）
+- 已完成 SKU 标签码后端闭环第一期：
+  - `product_skus.barcode` 已收敛为服务端托管的一物一码字段
+  - 新增迁移脚本 `drizzle/0007_sku_barcode_labels.sql`
+  - 迁移内容包含：为历史空条码 SKU 回填稳定编码、将字段改为非空、补唯一索引
+- 商品保存逻辑已改为：
+  - 创建/编辑商品时不再信任前端传入条码
+  - 新 SKU 先写入临时占位码，落库后按 `skuId` 生成稳定正式码，格式为 `SKU` + 10 位补零数字
+  - 编辑商品时会基于规格 `id` 保留既有标签码，避免每次编辑重发新码
+- 已新增接口：
+  - `GET /api/products/:id/labels`：管理员获取商品下全部 SKU 标签打印数据
+  - `GET /api/mobile/products/by-code?code=...`：移动端按标签码读取脱敏 SKU 销售信息
+- 扫码接口当前业务约束：
+  - 商品下架返回“该商品已下架，暂不可销售”
+  - 规格停用返回“该规格已停用，暂不可销售”
+  - 可售库存为 0 返回“该规格当前无可售库存”
+  - 响应明确不包含 `costPrice`
+- 已新增后端定向测试：
+  - `src/modules/products/products.service.test.ts`
+- 本次验证已执行：
+  - `npm test` 通过
+  - `npm run build` 通过
 
 ## 会话更新（2026-04-04）
 - 已为员工小程序补充客户年龄段只读接口：
