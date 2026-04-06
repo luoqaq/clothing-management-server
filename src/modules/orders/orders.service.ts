@@ -304,7 +304,8 @@ export class OrdersService {
 
     let items = (await Promise.all(rows.map((row: any) => this.buildOrder(row)))).filter(Boolean) as Order[];
     
-    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // 字符串格式 YYYY-MM-DD HH:mm:ss 可以直接用 localeCompare 比较
+    items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     
     const totalQuery = await this.db.select({ count: count() }).from(schema.orders).where(whereClause);
 

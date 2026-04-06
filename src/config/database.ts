@@ -32,6 +32,7 @@ export async function connectToDatabase() {
       user: config.user,
       password: config.password,
       database: config.database,
+      timezone: '+08:00',
       waitForConnections: true,
       connectionLimit: 10,
       maxIdle: 10,

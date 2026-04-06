@@ -1,19 +1,26 @@
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+
+// 启用 UTC 插件
+dayjs.extend(utc);
 
 /**
- * 将日期格式化为 ISO 格式字符串，供前端统一处理显示
- * 返回 ISO 8601 格式（如：2024-01-01T12:00:00.000Z），保留时区信息
+ * 将日期格式化为时间字符串
+ * 返回格式：2024-01-01 12:00:00
+ *
+ * 注意：数据库存储的是东八区时间，但我们直接用 utc 模式格式化，
+ * 避免 dayjs 进行任何时区转换，保持与数据库原始值一致
  */
 export function formatDateTime(value: unknown): string | null {
   if (!value) {
     return null;
   }
 
-  const date = dayjs(value);
+  // 使用 utc 模式，不进行任何时区转换，直接格式化
+  const date = dayjs.utc(value);
   if (!date.isValid()) {
     return null;
   }
 
-  // 返回 ISO 格式字符串，由前端统一格式化显示
-  return date.toISOString();
+  return date.format('YYYY-MM-DD HH:mm:ss');
 }
