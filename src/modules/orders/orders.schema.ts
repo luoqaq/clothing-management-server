@@ -11,6 +11,7 @@ export const orderSchema = z.object({
       z.object({
         skuId: z.number().min(1),
         quantity: z.number().int().min(1),
+        soldPrice: z.number().min(0, '售出价格不能为负数').optional(),
       })
     )
     .min(1, '订单至少需要一个商品'),

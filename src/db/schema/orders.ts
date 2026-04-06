@@ -49,6 +49,7 @@ export const orderItems = mysqlTable('order_items', {
   skuCode: varchar('sku_code', { length: 100 }).notNull(),
   image: varchar('image', { length: 500 }),
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+  soldPrice: decimal('sold_price', { precision: 10, scale: 2 }).default('0'),
   costPriceSnapshot: decimal('cost_price_snapshot', { precision: 10, scale: 2 }).notNull().default('0'),
   quantity: int('quantity').notNull(),
   color: varchar('color', { length: 50 }),

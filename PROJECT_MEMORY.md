@@ -1,6 +1,23 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-04-05
+最近更新：2026-04-06
+
+## 会话更新（2026-04-06）
+- 已完成一次针对生产环境的只读巡检，确认当前线上后端服务与反代链路健康：
+  - `ssh clothing-prod 'systemctl is-active clothing-management-server'` 返回 `active`
+  - `ssh clothing-prod 'curl -sS http://127.0.0.1:3000/health'` 返回成功 JSON
+  - 公网 `https://clothing.chuchu9.cn/api/auth/me` 未登录返回 `401`
+- 但本轮巡检同时确认：当前线上后端**还不是“订单录入改为售出价格”这波最新代码**：
+  - 线上仓库 `/var/clothing/server` 当前提交仍为 `c7bee9c`
+  - 线上源码仍保留 `discountAmount` 扣减逻辑，尚未包含 `soldPrice / sold_price` 相关实现
+  - `clothing-management-server` 服务最近一次启动时间为 `2026-04-06 21:46:24 CST`，说明今天做过重启或发布，但启动的仍是旧代码版本
+- 当前本地后端与该需求直接相关的改动仍停留在工作区：
+  - `src/db/schema/orders.ts`
+  - `src/modules/orders/orders.schema.ts`
+  - `src/modules/orders/orders.service.ts`
+  - `src/types/index.ts`
+- 上线风险提醒：
+  - 本地后端改动已新增 `order_items.sold_price` 字段映射，但当前仓库尚未看到配套的标准 `drizzle/*.sql` migration；按现有发布规范，正式发布前应先补齐 SQL migration 并完成数据库侧验证
 
 ## 会话更新（2026-04-05）
 - 已将订单时间序列化修复推送到远端主分支：

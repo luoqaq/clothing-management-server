@@ -5,7 +5,7 @@ import dayjs from 'dayjs';
 import { ProductsService } from '../products/products.service';
 
 type CreateOrderPayload = Omit<Order, 'id' | 'orderNo' | 'createdAt' | 'updatedAt' | 'items'> & {
-  items: Array<{ skuId: number; quantity: number }>;
+  items: Array<{ skuId: number; quantity: number; soldPrice?: number }>;
 };
 
 export class OrdersService {
@@ -34,6 +34,7 @@ export class OrdersService {
       message.includes('customer_id') ||
       message.includes('paid_at') ||
       message.includes('cost_price_snapshot') ||
+      message.includes('sold_price') ||
       message.includes('customers')
     );
   }
@@ -180,6 +181,7 @@ export class OrdersService {
       skuCode: item.skuCode,
       image: item.image ?? null,
       price: Number(item.price ?? 0),
+      soldPrice: item.soldPrice ? Number(item.soldPrice) : Number(item.price ?? 0),
       costPriceSnapshot: Number(item.costPriceSnapshot ?? 0),
       quantity: Number(item.quantity ?? 0),
       color: item.color ?? null,
@@ -382,13 +384,16 @@ export class OrdersService {
           await this.productsService.reserveSpecificationStock(Number(sku.id), item.quantity);
           reservedItems.push({ skuId: Number(sku.id), quantity: item.quantity });
 
+          const originalPrice = Number(sku.salePrice ?? 0);
+          const soldPrice = item.soldPrice ?? originalPrice;
           return {
             productId: Number(product.id),
             skuId: Number(sku.id),
             productName: product.name,
             skuCode: sku.skuCode,
             image: Array.isArray(product.mainImages) ? product.mainImages[0] ?? null : null,
-            price: Number(sku.salePrice ?? 0),
+            price: originalPrice,
+            soldPrice: soldPrice,
             costPriceSnapshot: Number(sku.costPrice ?? 0),
             quantity: item.quantity,
             color: sku.color,
@@ -397,9 +402,8 @@ export class OrdersService {
         })
       );
 
-      const totalAmount = enrichedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const discountAmount = Number(data.discountAmount ?? 0);
-      const finalAmount = Math.max(totalAmount - discountAmount, 0);
+      const totalAmount = enrichedItems.reduce((sum, item) => sum + item.soldPrice * item.quantity, 0);
+      const finalAmount = totalAmount;
       const nextStatus = data.status ?? 'pending';
       const paymentStatus = data.paymentStatus ?? 'paid';
       const paidAt = paymentStatus === 'paid' ? new Date() : null;
@@ -416,7 +420,7 @@ export class OrdersService {
             customerPhone: data.customerPhone ?? '',
             customerEmail: data.customerEmail || null,
             totalAmount: String(totalAmount),
-            discountAmount: String(discountAmount),
+            discountAmount: '0',
             finalAmount: String(finalAmount),
             status: nextStatus,
             address: data.address ?? {},
@@ -440,7 +444,7 @@ export class OrdersService {
             customerPhone: data.customerPhone ?? '',
             customerEmail: data.customerEmail || null,
             totalAmount: String(totalAmount),
-            discountAmount: String(discountAmount),
+            discountAmount: '0',
             finalAmount: String(finalAmount),
             status: nextStatus,
             address: data.address ?? {},
@@ -466,6 +470,7 @@ export class OrdersService {
             skuCode: item.skuCode,
             image: item.image,
             price: String(item.price),
+            soldPrice: String(item.soldPrice ?? item.price),
             costPriceSnapshot: String(item.costPriceSnapshot),
             quantity: item.quantity,
             color: item.color,
