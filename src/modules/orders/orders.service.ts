@@ -2,6 +2,7 @@ import { and, count, eq, gte, like, lte, ne, or } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { Order, OrderFilters, OrderItem, OrderSource, OrderStatus } from '../../types';
 import dayjs from 'dayjs';
+import { formatDateTime as formatDateTimeUtil } from '../../utils/date';
 import { ProductsService } from '../products/products.service';
 
 type CreateOrderPayload = Omit<Order, 'id' | 'orderNo' | 'createdAt' | 'updatedAt' | 'items'> & {
@@ -20,12 +21,7 @@ export class OrdersService {
   }
 
   private formatDateTime(value: unknown): string | undefined {
-    if (!value) {
-      return undefined;
-    }
-
-    const formatted = dayjs(value).format('YYYY-MM-DD HH:mm:ss');
-    return formatted === 'Invalid Date' ? undefined : formatted;
+    return formatDateTimeUtil(value) ?? undefined;
   }
 
   private isSchemaCompatibilityError(error: unknown) {
@@ -306,7 +302,10 @@ export class OrdersService {
         .offset(offset);
     }
 
-    const items = (await Promise.all(rows.map((row: any) => this.buildOrder(row)))).filter(Boolean) as Order[];
+    let items = (await Promise.all(rows.map((row: any) => this.buildOrder(row)))).filter(Boolean) as Order[];
+    
+    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
     const totalQuery = await this.db.select({ count: count() }).from(schema.orders).where(whereClause);
 
     return {

@@ -4,6 +4,7 @@ import { hashPassword, comparePassword } from '../../utils/password';
 import { generateToken } from '../../utils/jwt';
 import type { User } from '../../types';
 import { isAdminRole, normalizeRole } from '../../utils/role';
+import { formatDateTime } from '../../utils/date';
 
 export interface LoginCredentials {
   username: string;
@@ -52,7 +53,7 @@ export class AuthService {
       username: user.username,
       name: user.name,
       role: normalizeRole(user.role),
-      createdAt: String(user.createdAt),
+      createdAt: formatDateTime(user.createdAt) ?? '',
     };
   }
 

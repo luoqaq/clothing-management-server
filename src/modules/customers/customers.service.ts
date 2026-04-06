@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { Customer, CustomerAgeBucket } from '../../types';
+import { formatDateTime } from '../../utils/date';
 
 export class CustomersService {
   constructor(private db: any) {}
@@ -26,8 +27,8 @@ export class CustomersService {
         id: Number(row.id),
         name: row.name,
         sortOrder: Number(row.sortOrder ?? 0),
-        createdAt: String(row.createdAt),
-        updatedAt: String(row.updatedAt),
+        createdAt: formatDateTime(row.createdAt) ?? '',
+        updatedAt: formatDateTime(row.updatedAt) ?? '',
       }));
     } catch (error) {
       if (!this.isSchemaCompatibilityError(error)) {
@@ -89,11 +90,11 @@ export class CustomersService {
         email: row.email ?? null,
         ageBucketId: row.ageBucketId ? Number(row.ageBucketId) : null,
         ageBucket: row.ageBucketId ? ageBucketMap.get(Number(row.ageBucketId)) ?? null : null,
-        firstPaidOrderAt: row.firstPaidOrderAt ? String(row.firstPaidOrderAt) : null,
-        lastPaidOrderAt: row.lastPaidOrderAt ? String(row.lastPaidOrderAt) : null,
+        firstPaidOrderAt: formatDateTime(row.firstPaidOrderAt),
+        lastPaidOrderAt: formatDateTime(row.lastPaidOrderAt),
         paidOrderCount: Number(row.paidOrderCount ?? 0),
-        createdAt: String(row.createdAt),
-        updatedAt: String(row.updatedAt),
+        createdAt: formatDateTime(row.createdAt) ?? '',
+        updatedAt: formatDateTime(row.updatedAt) ?? '',
       }));
     } catch (error) {
       if (!this.isSchemaCompatibilityError(error)) {
@@ -121,8 +122,8 @@ export class CustomersService {
       id: Number(row.id),
       name: row.name,
       sortOrder: Number(row.sortOrder ?? 0),
-      createdAt: String(row.createdAt),
-      updatedAt: String(row.updatedAt),
+      createdAt: formatDateTime(row.createdAt) ?? '',
+      updatedAt: formatDateTime(row.updatedAt) ?? '',
     };
   }
 }

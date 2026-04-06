@@ -10,6 +10,7 @@ import type {
   Supplier,
 } from '../../types';
 import { isAdminRole } from '../../utils/role';
+import { formatDateTime } from '../../utils/date';
 
 type ProductPayload = Omit<
   Product,
@@ -84,8 +85,8 @@ export class ProductsService {
       cumulativeInboundQuantity,
       cumulativeCostAmount,
       status: row.status,
-      createdAt: String(row.createdAt),
-      updatedAt: String(row.updatedAt),
+      createdAt: formatDateTime(row.createdAt) ?? '',
+      updatedAt: formatDateTime(row.updatedAt) ?? '',
     };
   }
 
@@ -163,8 +164,8 @@ export class ProductsService {
       availableStock: Math.max(totalStock - reservedStock, 0),
       minPrice: prices.length > 0 ? Math.min(...prices) : 0,
       maxPrice: prices.length > 0 ? Math.max(...prices) : 0,
-      createdAt: String(productRow.createdAt),
-      updatedAt: String(productRow.updatedAt),
+            createdAt: formatDateTime(productRow.createdAt) ?? '',
+      updatedAt: formatDateTime(productRow.updatedAt) ?? '',
     };
   }
 
