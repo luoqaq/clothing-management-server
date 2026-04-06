@@ -1,4 +1,4 @@
-import { eq, gte } from 'drizzle-orm';
+import { and, eq, gte, ne } from 'drizzle-orm';
 import dayjs from 'dayjs';
 import * as schema from '../../db/schema';
 import { AuthService } from '../auth/auth.service';
@@ -42,7 +42,14 @@ export class MobileService {
       this.db
         .select({ id: schema.orders.id })
         .from(schema.orders)
-        .where(gte(schema.orders.createdAt, todayStart)),
+        .where(
+          and(
+            gte(schema.orders.createdAt, todayStart),
+            eq(schema.orders.paymentStatus, 'paid'),
+            ne(schema.orders.status, 'cancelled'),
+            ne(schema.orders.status, 'refunded')
+          )
+        ),
       this.db
         .select({ id: schema.orders.id })
         .from(schema.orders)
