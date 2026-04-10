@@ -1,7 +1,9 @@
 import OpenAI from 'openai';
+import * as XLSX from 'xlsx';
 import * as schema from '../../db/schema';
 import type {
   BulkCreateProductsResponse,
+  ExcelImportPayload,
   ImportDraftProduct,
   ImportDraftSpecification,
   ImportIssue,
@@ -33,6 +35,12 @@ interface ImageAiProduct {
     status?: 'active' | 'inactive';
   }>;
 }
+
+const EXCEL_MIME_TYPES = new Set([
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/octet-stream',
+]);
 
 export class ProductImportService {
   private productsService: ProductsService;
@@ -89,6 +97,66 @@ export class ProductImportService {
     }
 
     return [value];
+  }
+
+  private isExcelFile(file: File): boolean {
+    const normalizedName = this.normalizeText(file.name).toLowerCase();
+    const hasValidExtension = normalizedName.endsWith('.xlsx') || normalizedName.endsWith('.xls');
+    const normalizedType = this.normalizeText(file.type).toLowerCase();
+    const hasValidMimeType = !normalizedType || EXCEL_MIME_TYPES.has(normalizedType);
+    return hasValidExtension && hasValidMimeType;
+  }
+
+  private buildExcelImportPayloadFromRows(
+    fileName: string,
+    rows: Array<Array<string | number | boolean | null>>
+  ): ExcelImportPayload {
+    const [headerRow, ...dataRows] = rows;
+    const headers = (headerRow ?? []).map((item) => String(item ?? '').trim()).filter(Boolean);
+
+    if (!headers.length) {
+      throw new Error('Excel 表头不能为空');
+    }
+
+    const normalizedRows = dataRows
+      .filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''))
+      .map((row) =>
+        headers.reduce<Record<string, string | number | boolean | null>>((acc, header, index) => {
+          acc[header] = row[index] ?? '';
+          return acc;
+        }, {})
+      );
+
+    if (!normalizedRows.length) {
+      throw new Error('Excel 没有可导入的数据行');
+    }
+
+    return {
+      fileName,
+      headers,
+      rows: normalizedRows,
+    };
+  }
+
+  private async buildExcelImportPayloadFromFile(file: File): Promise<ExcelImportPayload> {
+    if (!this.isExcelFile(file)) {
+      throw new Error('仅支持上传 .xlsx 或 .xls 文件');
+    }
+
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+
+    if (!sheetName) {
+      throw new Error('Excel 中没有可读取的工作表');
+    }
+
+    const rows = XLSX.utils.sheet_to_json<Array<string | number | boolean | null>>(workbook.Sheets[sheetName], {
+      header: 1,
+      raw: true,
+      defval: '',
+    });
+
+    return this.buildExcelImportPayloadFromRows(file.name, rows);
   }
 
   private findCategoryId(categoryName: string, categories: Array<{ id: number; name: string }>): number | null {
@@ -372,6 +440,11 @@ export class ProductImportService {
       drafts,
       issues: this.validateDrafts(drafts),
     };
+  }
+
+  async parseExcelFileImport(file: File): Promise<ImportParseResult> {
+    const payload = await this.buildExcelImportPayloadFromFile(file);
+    return this.parseExcelImport(payload);
   }
 
   async parseImageImport(file: File): Promise<ImportParseResult> {

@@ -114,6 +114,23 @@ export class ProductsController {
     }
   }
 
+  async parseExcelImportFile(c: Context) {
+    try {
+      const body = await c.req.parseBody();
+      const file = body.file;
+
+      if (!(file instanceof File)) {
+        return c.json(error('请上传 Excel 文件'), 400);
+      }
+
+      const result = await this.importService.parseExcelFileImport(file);
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Parse excel file import error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
   async parseImageImport(c: Context) {
     try {
       const body = await c.req.parseBody();

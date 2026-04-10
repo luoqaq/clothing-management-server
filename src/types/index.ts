@@ -139,6 +139,12 @@ export interface ImportParseResult {
   issues: ImportIssue[];
 }
 
+export interface ExcelImportPayload {
+  fileName: string;
+  headers: string[];
+  rows: Array<Record<string, string | number | boolean | null>>;
+}
+
 export interface BulkCreateProductsResultItem {
   rowKey: string;
   productCode: string;

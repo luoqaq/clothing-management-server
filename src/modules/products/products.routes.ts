@@ -13,6 +13,7 @@ export function createProductsRoutes(db: MySql2Database<typeof schema>) {
 
   products.get('/', (c) => controller.getProducts(c));
   products.post('/import/parse-excel', requireRoles(['admin']), (c) => controller.parseExcelImport(c));
+  products.post('/import/parse-excel-file', requireRoles(['admin']), (c) => controller.parseExcelImportFile(c));
   products.post('/import/parse-image', requireRoles(['admin']), (c) => controller.parseImageImport(c));
   products.post('/import/bulk-create', requireRoles(['admin']), (c) => controller.bulkCreateProducts(c));
   products.get('/categories', (c) => controller.getCategories(c));
