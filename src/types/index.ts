@@ -226,6 +226,8 @@ export interface OrderFilters {
   source?: OrderSource;
   startDate?: string;
   endDate?: string;
+  sortBy?: 'createdAt';
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface DailySalesData {

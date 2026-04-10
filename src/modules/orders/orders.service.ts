@@ -1,4 +1,4 @@
-import { and, count, eq, gte, like, lte, ne, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, like, lte, ne, or } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { Order, OrderFilters, OrderItem, OrderSource, OrderStatus } from '../../types';
 import dayjs from 'dayjs';
@@ -220,8 +220,12 @@ export class OrdersService {
   }): Promise<{ items: Order[]; total: number }> {
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? 20;
-    const { search, status, paymentStatus, source, startDate, endDate } = params?.filters || {};
+    const { search, status, paymentStatus, source, startDate, endDate, sortBy, sortOrder } = params?.filters || {};
     const offset = (page - 1) * pageSize;
+    const isCreatedAtAsc = sortBy === 'createdAt' && sortOrder === 'asc';
+    const orderByClause = isCreatedAtAsc
+      ? [asc(schema.orders.createdAt), asc(schema.orders.id)]
+      : [desc(schema.orders.createdAt), desc(schema.orders.id)];
 
     const whereConditions: any[] = [];
 
@@ -263,7 +267,7 @@ export class OrdersService {
         .select()
         .from(schema.orders)
         .where(whereClause)
-        .orderBy(schema.orders.createdAt, 'desc')
+        .orderBy(...orderByClause)
         .limit(pageSize)
         .offset(offset);
     } catch (error) {
@@ -297,15 +301,12 @@ export class OrdersService {
         })
         .from(schema.orders)
         .where(whereClause)
-        .orderBy(schema.orders.createdAt, 'desc')
+        .orderBy(...orderByClause)
         .limit(pageSize)
         .offset(offset);
     }
 
-    let items = (await Promise.all(rows.map((row: any) => this.buildOrder(row)))).filter(Boolean) as Order[];
-    
-    // 字符串格式 YYYY-MM-DD HH:mm:ss 可以直接用 localeCompare 比较
-    items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const items = (await Promise.all(rows.map((row: any) => this.buildOrder(row)))).filter(Boolean) as Order[];
     
     const totalQuery = await this.db.select({ count: count() }).from(schema.orders).where(whereClause);
 

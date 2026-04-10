@@ -4,7 +4,12 @@ import type { Order } from '../../types';
 import * as schema from '../../db/schema';
 
 function createOrdersDbMock(orders: any[], orderItems: any[]) {
+  const tracker = {
+    orderByArgsLength: 0,
+  };
+
   return {
+    tracker,
     select(fields?: unknown) {
       return {
         from(table: unknown) {
@@ -17,12 +22,15 @@ function createOrdersDbMock(orders: any[], orderItems: any[]) {
           if (table === schema.orders) {
             return {
               where: () => ({
-                orderBy: () => ({
+                orderBy: (...args: unknown[]) => {
+                  tracker.orderByArgsLength = args.length;
+                  return {
                   limit: (pageSize: number) => ({
                     offset: async (offset: number) =>
                       orders.slice(offset, offset + pageSize),
                   }),
-                }),
+                };
+                },
               }),
             };
           }
@@ -125,5 +133,38 @@ describe('OrdersService.getOrders', () => {
     expect(result.items[0].createdAt).toBe('2026-04-05 11:53:00');
     expect(result.items[0].updatedAt).toBe('2026-04-05 12:10:00');
     expect(result.items[0].paidAt).toBe('2026-04-05 11:53:00');
+  });
+
+  it('uses a stable secondary sort key for paginated order queries', async () => {
+    const createdAt = new Date('2026-04-07T10:00:00');
+    const orders = [
+      {
+        id: 3,
+        orderNo: '202604070003',
+        customerName: 'Alice',
+        customerPhone: '13800000001',
+        finalAmount: '199.00',
+        paymentStatus: 'paid',
+        status: 'pending',
+        createdAt,
+      },
+      {
+        id: 2,
+        orderNo: '202604070002',
+        customerName: 'Bob',
+        customerPhone: '13800000002',
+        finalAmount: '299.00',
+        paymentStatus: 'paid',
+        status: 'confirmed',
+        createdAt,
+      },
+    ];
+
+    const dbMock = createOrdersDbMock(orders, []);
+    const service = new OrdersService(dbMock as any);
+
+    await service.getOrders({ page: 1, pageSize: 1 });
+
+    expect(dbMock.tracker.orderByArgsLength).toBe(2);
   });
 });

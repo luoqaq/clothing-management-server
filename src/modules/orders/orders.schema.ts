@@ -58,6 +58,8 @@ export const orderFiltersSchema = z.object({
   source: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  sortBy: z.enum(['createdAt']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
   page: z.string().optional(),
   pageSize: z.string().optional(),
 });
