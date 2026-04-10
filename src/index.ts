@@ -13,6 +13,7 @@ import { createProductsRoutes } from './modules/products/products.routes';
 import { createOrdersRoutes } from './modules/orders/orders.routes';
 import { createStatisticsRoutes } from './modules/statistics/statistics.routes';
 import { createMobileRoutes } from './modules/mobile/mobile.routes';
+import { createDashboardRoutes } from './modules/dashboard/dashboard.routes';
 import { createCustomersRoutes } from './modules/customers/customers.routes';
 
 const app = new Hono();
@@ -50,6 +51,7 @@ async function initializeApp() {
   app.route('/api/orders', createOrdersRoutes(db));
   app.route('/api/customers', createCustomersRoutes(db));
   app.route('/api/statistics', createStatisticsRoutes(db));
+  app.route('/api/dashboard', createDashboardRoutes(db));
   app.route('/api/mobile', createMobileRoutes(db));
 
   // 全局错误处理
@@ -62,7 +64,6 @@ async function initializeApp() {
   });
 
   logger.info(`服务器启动成功，监听在 http://${HOST}:${PORT}`);
-  logger.info('默认账户: chuchu / chuchu0510');
 }
 
 // 启动应用

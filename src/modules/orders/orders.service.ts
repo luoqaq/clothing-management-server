@@ -256,7 +256,10 @@ export class OrdersService {
     }
 
     if (endDate) {
-      whereConditions.push(lte(schema.orders.createdAt, new Date(`${endDate} 23:59:59`)));
+      const end = endDate.includes('T') || endDate.includes(':')
+        ? new Date(endDate)
+        : new Date(`${endDate} 23:59:59`);
+      whereConditions.push(lte(schema.orders.createdAt, end));
     }
 
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;

@@ -15,7 +15,6 @@ export function createMobileRoutes(db: MySql2Database<typeof schema>) {
 
   mobile.post('/auth/logout', (c) => controller.logout(c));
   mobile.get('/auth/me', (c) => controller.getCurrentUser(c));
-  mobile.get('/dashboard/summary', (c) => controller.getDashboardSummary(c));
   mobile.get('/products', (c) => controller.getProducts(c));
   mobile.get('/products/by-code', (c) => controller.getProductByCode(c));
   mobile.get('/products/:id', (c) => controller.getProduct(c));

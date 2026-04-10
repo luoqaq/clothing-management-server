@@ -42,16 +42,6 @@ export class MobileController {
     return c.json(success(null, '退出成功'));
   }
 
-  async getDashboardSummary(c: Context) {
-    try {
-      const result = await this.service.getDashboardSummary();
-      return c.json(success(result));
-    } catch (err: any) {
-      logger.error('Get mobile dashboard summary error:', err);
-      return c.json(error(err.message), 400);
-    }
-  }
-
   async getProducts(c: Context) {
     try {
       const query = productFiltersSchema.parse(c.req.query());
