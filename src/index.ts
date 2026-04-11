@@ -68,6 +68,7 @@ async function initializeApp() {
 
 // 启动应用
 initializeApp().catch((err) => {
+  console.error('应用初始化失败:', err);
   logger.error('应用初始化失败:', err);
   process.exit(1);
 });

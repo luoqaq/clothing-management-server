@@ -1,6 +1,7 @@
-import { and, eq, gte, lte, ne } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import dayjs from 'dayjs';
 import * as schema from '../../db/schema';
+import { toDbRangeEnd, toDbRangeStart } from '../../utils/date';
 import type {
   CategorySalesData,
   CostProductRankingItem,
@@ -68,12 +69,15 @@ export class StatisticsService {
   }
 
   private buildValidPaidOrdersDateRangeWhere(dateRange: DateRange, useLegacyCreatedAt = false) {
+    const start = toDbRangeStart(dateRange.start);
+    const end = toDbRangeEnd(dateRange.end);
+    const timeCol = useLegacyCreatedAt ? schema.orders.createdAt : schema.orders.paidAt;
     return and(
       eq(schema.orders.paymentStatus, 'paid'),
       ne(schema.orders.status, 'cancelled'),
       ne(schema.orders.status, 'refunded'),
-      gte(useLegacyCreatedAt ? schema.orders.createdAt : schema.orders.paidAt, new Date(dateRange.start)),
-      lte(useLegacyCreatedAt ? schema.orders.createdAt : schema.orders.paidAt, new Date(`${dateRange.end} 23:59:59`))
+      sql`${timeCol} >= ${start}`,
+      sql`${timeCol} <= ${end}`
     );
   }
 

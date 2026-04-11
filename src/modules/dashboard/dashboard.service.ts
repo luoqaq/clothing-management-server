@@ -1,6 +1,6 @@
-import { and, eq, gte, lte, ne } from 'drizzle-orm';
-import dayjs from 'dayjs';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import * as schema from '../../db/schema';
+import { toDbRangeEnd, toDbRangeStart } from '../../utils/date';
 import { OrdersService } from '../orders/orders.service';
 import { ProductsService } from '../products/products.service';
 
@@ -14,16 +14,12 @@ export class DashboardService {
   }
 
   async getDashboardSummary(params?: { startDate?: string; endDate?: string }) {
-    const start = params?.startDate
-      ? dayjs(params.startDate).startOf('day').toDate()
-      : dayjs().startOf('day').toDate();
-    const end = params?.endDate
-      ? dayjs(params.endDate).endOf('day').toDate()
-      : dayjs().endOf('day').toDate();
+    const start = toDbRangeStart(params?.startDate);
+    const end = toDbRangeEnd(params?.endDate);
 
     const dateRangeCondition = and(
-      gte(schema.orders.createdAt, start),
-      lte(schema.orders.createdAt, end)
+      sql`${schema.orders.createdAt} >= ${start}`,
+      sql`${schema.orders.createdAt} <= ${end}`
     );
 
     const [allOrders, validOrders, cancelledOrders, pendingOrders, products, activeSkus] = await Promise.all([
@@ -75,8 +71,8 @@ export class DashboardService {
       page: 1,
       pageSize: 20,
       filters: {
-        startDate: start.toISOString(),
-        endDate: end.toISOString(),
+        startDate: start,
+        endDate: end,
       },
     });
 

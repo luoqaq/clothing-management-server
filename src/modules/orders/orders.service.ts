@@ -1,8 +1,8 @@
-import { and, asc, count, desc, eq, gte, like, lte, ne, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, like, ne, or, sql } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { Order, OrderFilters, OrderItem, OrderSource, OrderStatus } from '../../types';
 import dayjs from 'dayjs';
-import { formatDateTime as formatDateTimeUtil } from '../../utils/date';
+import { formatDateTime as formatDateTimeUtil, toDbRangeEnd, toDbRangeStart } from '../../utils/date';
 import { ProductsService } from '../products/products.service';
 
 type CreateOrderPayload = Omit<Order, 'id' | 'orderNo' | 'createdAt' | 'updatedAt' | 'items'> & {
@@ -252,14 +252,11 @@ export class OrdersService {
     }
 
     if (startDate) {
-      whereConditions.push(gte(schema.orders.createdAt, new Date(startDate)));
+      whereConditions.push(sql`${schema.orders.createdAt} >= ${toDbRangeStart(startDate)}`);
     }
 
     if (endDate) {
-      const end = endDate.includes('T') || endDate.includes(':')
-        ? new Date(endDate)
-        : new Date(`${endDate} 23:59:59`);
-      whereConditions.push(lte(schema.orders.createdAt, end));
+      whereConditions.push(sql`${schema.orders.createdAt} <= ${toDbRangeEnd(endDate)}`);
     }
 
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;

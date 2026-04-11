@@ -109,6 +109,18 @@
 - 遗留问题或风险：
   - 当前文件类型校验仍以扩展名和 MIME 的常见组合为主；如果后续遇到更特殊的移动端上传 MIME，可按现场样本补兼容。
 
+### 会话日期：2026-04-11
+- 变更内容：
+  - 修复工作台与订单日期筛选的本地日界线错位问题。
+  - 后端按天筛选不再把 `YYYY-MM-DD` 先转成 `Date/ISO` 再交给 Drizzle，而是统一归一成东八区 `YYYY-MM-DD HH:mm:ss` 边界并用 SQL `datetime` 比较。
+  - 新增 `src/utils/date.test.ts`，覆盖日期边界归一化，避免“今日订单”把前一天晚间订单算进去。
+- 验证结果：
+  - `bun test src/utils/date.test.ts src/modules/orders/orders.service.test.ts` 通过。
+  - `bun -e "...DashboardService.getDashboardSummary({startDate:'2026-04-11', endDate:'2026-04-11'})..."` 返回 `orderCount: 0`。
+  - `npm run build` 通过。
+- 遗留问题或风险：
+  - 统计模块仍有独立的日期处理逻辑；若后续出现销售统计的“今日/昨日”错位，需要按同一口径继续核对 `statistics.service.ts`。
+
 ### 会话日期：2026-04-06
 - 变更内容：
   - 做过一次生产只读巡检，确认后端服务、反代与公网访问链路可用。
