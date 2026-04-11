@@ -206,9 +206,23 @@ export class ProductsService {
     const whereConditions: any[] = [];
 
     if (search) {
-      whereConditions.push(
-        or(like(schema.products.name, `%${search}%`), like(schema.products.productCode, `%${search}%`))
-      );
+      const likeName = like(schema.products.name, `%${search}%`);
+      const likeCode = like(schema.products.productCode, `%${search}%`);
+      const supplierRows = await this.db
+        .select({ id: schema.suppliers.id })
+        .from(schema.suppliers)
+        .where(like(schema.suppliers.name, `%${search}%`));
+      if (supplierRows.length > 0) {
+        whereConditions.push(
+          or(
+            likeName,
+            likeCode,
+            inArray(schema.products.supplierId, supplierRows.map((s) => s.id))
+          )
+        );
+      } else {
+        whereConditions.push(or(likeName, likeCode));
+      }
     }
 
     if (categoryId) {
