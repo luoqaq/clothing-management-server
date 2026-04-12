@@ -22,7 +22,7 @@ export class DashboardService {
       sql`${schema.orders.createdAt} <= ${end}`
     );
 
-    const [allOrders, validOrders, cancelledOrders, pendingOrders, products, activeSkus] = await Promise.all([
+    const [allOrders, validOrders, cancelledOrders, pendingOrders, products, activeSkus, orderItems] = await Promise.all([
       this.db
         .select({ id: schema.orders.id })
         .from(schema.orders)
@@ -59,6 +59,21 @@ export class DashboardService {
         })
         .from(schema.productSkus)
         .where(eq(schema.productSkus.status, 'active')),
+      this.db
+        .select({
+          price: schema.orderItems.price,
+          soldPrice: schema.orderItems.soldPrice,
+          costPriceSnapshot: schema.orderItems.costPriceSnapshot,
+          quantity: schema.orderItems.quantity,
+        })
+        .from(schema.orderItems)
+        .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+        .where(
+          and(
+            dateRangeCondition,
+            ne(schema.orders.status, 'cancelled')
+          )
+        ),
     ]);
 
     const lowStockCount = activeSkus.filter((item: any) => {
@@ -77,10 +92,17 @@ export class DashboardService {
     });
 
     const salesAmount = validOrders.reduce((sum: number, order: any) => sum + Number(order.finalAmount ?? 0), 0);
+    const grossProfit = orderItems.reduce((sum: number, item: any) => {
+      const unitPrice = Number(item.soldPrice ?? 0) > 0 ? Number(item.soldPrice) : Number(item.price ?? 0);
+      const revenue = unitPrice * Number(item.quantity ?? 0);
+      const cost = Number(item.costPriceSnapshot ?? 0) * Number(item.quantity ?? 0);
+      return sum + (revenue - cost);
+    }, 0);
 
     return {
       orderCount: allOrders.length,
       salesAmount,
+      grossProfit,
       cancelledCount: cancelledOrders.length,
       pendingOrderCount: pendingOrders.length,
       lowStockCount,
