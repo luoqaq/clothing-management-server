@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, like, or } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, like, ne, or } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type {
   Product,
@@ -272,6 +272,27 @@ export class ProductsService {
     const rows = await this.db.select().from(schema.products).where(eq(schema.products.id, id));
     const products = await this.getProductsWithRelations(rows, role);
     return products[0] ?? null;
+  }
+
+  async checkProductCodeExists(code: string, excludeId?: number): Promise<boolean> {
+    const normalizedCode = String(code ?? '').trim();
+    if (!normalizedCode) {
+      throw new Error('款号不能为空');
+    }
+
+    const whereClause = excludeId
+      ? and(
+          eq(schema.products.productCode, normalizedCode),
+          ne(schema.products.id, excludeId)
+        )
+      : eq(schema.products.productCode, normalizedCode);
+
+    const rows = await this.db
+      .select({ count: count() })
+      .from(schema.products)
+      .where(whereClause);
+
+    return Number(rows[0]?.count ?? 0) > 0;
   }
 
   async createProduct(data: ProductPayload): Promise<Product> {

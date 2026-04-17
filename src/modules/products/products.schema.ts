@@ -50,3 +50,11 @@ export const productFiltersSchema = z.object({
   page: z.string().optional(),
   pageSize: z.string().optional(),
 });
+
+export const checkProductCodeSchema = z.object({
+  code: z.string().trim().min(1, '款号不能为空'),
+  excludeId: z
+    .string()
+    .regex(/^\d+$/, 'excludeId 必须是数字')
+    .optional(),
+});

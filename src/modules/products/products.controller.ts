@@ -4,6 +4,7 @@ import type { MySql2Database } from 'drizzle-orm/mysql2';
 import * as schema from '../../db/schema';
 import {
   categorySchema,
+  checkProductCodeSchema,
   productFiltersSchema,
   productSchema,
   supplierSchema,
@@ -69,6 +70,22 @@ export class ProductsController {
       return c.json(success(product));
     } catch (err: any) {
       logger.error('Get product error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async checkProductCode(c: Context) {
+    try {
+      const query = c.req.query();
+      const { code, excludeId } = checkProductCodeSchema.parse(query);
+      const exists = await this.service.checkProductCodeExists(
+        code,
+        excludeId ? parseInt(excludeId, 10) : undefined
+      );
+
+      return c.json(success({ exists }));
+    } catch (err: any) {
+      logger.error('Check product code error:', err);
       return c.json(error(err.message), 400);
     }
   }

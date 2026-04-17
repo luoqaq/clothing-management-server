@@ -12,6 +12,7 @@ export function createProductsRoutes(db: MySql2Database<typeof schema>) {
   products.use('*', authMiddleware);
 
   products.get('/', (c) => controller.getProducts(c));
+  products.get('/check-code', (c) => controller.checkProductCode(c));
   products.post('/import/parse-excel', requireRoles(['admin']), (c) => controller.parseExcelImport(c));
   products.post('/import/parse-excel-file', requireRoles(['admin']), (c) => controller.parseExcelImportFile(c));
   products.post('/import/parse-image', requireRoles(['admin']), (c) => controller.parseImageImport(c));
