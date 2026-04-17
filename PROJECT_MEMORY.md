@@ -88,6 +88,18 @@
 
 ## 最近会话摘要
 
+### 会话日期：2026-04-17
+- 变更内容：
+  - 商品创建、编辑、批量导入三条链路已统一改为后端强拦截重复款号；服务层会在写库前校验 `productCode` 是否已存在，重复时返回明确错误文案。
+  - 批量导入在真正写库前会同时检查“本批次内部重复款号”和“数据库中已存在款号”，避免出现半成功导入。
+- 验证结果：
+  - `bun test src/modules/products/products.service.test.ts src/modules/products/product-import.service.test.ts` 通过。
+  - `npm run build` 通过。
+  - 已推送 `main`，并于 2026-04-17 23:20 CST 通过生产机 `/var/clothing/server/deploy/release.sh all` 完成上线。
+  - 生产巡检通过：`/health` 返回成功，`https://clothing.chuchu9.cn/` 返回 `200`，`https://clothing.chuchu9.cn/api/auth/me` 未登录返回 `401`。
+- 遗留问题或风险：
+  - 当前仍是应用层拦截，数据库层没有恢复 `product_code` 唯一索引；若后续新增绕过 `ProductsService` 的写入入口，仍可能写入重复款号。
+
 ### 会话日期：2026-04-10
 - 变更内容：
   - 修复订单列表分页排序不稳定问题，订单查询改为按 `created_at desc, id desc` 稳定排序。

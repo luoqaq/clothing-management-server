@@ -5,7 +5,7 @@ import { logger } from '../../utils/logger';
 import { error, success, successPaginated } from '../../utils/response';
 import { loginSchema } from '../auth/auth.schema';
 import { orderFiltersSchema, orderSchema, shipOrderSchema, updateStatusSchema, cancelOrderSchema } from '../orders/orders.schema';
-import { productFiltersSchema, productSchema } from '../products/products.schema';
+import { checkProductCodeSchema, productFiltersSchema, productSchema } from '../products/products.schema';
 import { MobileService } from './mobile.service';
 import { updateProductImagesSchema } from './mobile.schema';
 
@@ -114,6 +114,20 @@ export class MobileController {
       return c.json(success(product));
     } catch (err: any) {
       logger.error('Get mobile product by code error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async checkProductCode(c: Context) {
+    try {
+      const { code, excludeId } = checkProductCodeSchema.parse(c.req.query());
+      const exists = await this.service
+        .getProductsService()
+        .checkProductCodeExists(code, excludeId ? parseInt(excludeId, 10) : undefined);
+
+      return c.json(success({ exists }));
+    } catch (err: any) {
+      logger.error('Check mobile product code error:', err);
       return c.json(error(err.message), 400);
     }
   }
