@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import * as XLSX from 'xlsx';
+import { inArray } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type {
   BulkCreateProductsResponse,
@@ -286,6 +287,42 @@ export class ProductImportService {
     return issues;
   }
 
+  private findDuplicateCodesInDrafts(drafts: ImportDraftProduct[]): Set<string> {
+    const codeCounter = new Map<string, number>();
+
+    for (const draft of drafts) {
+      const productCode = this.normalizeText(draft.productCode);
+      if (!productCode) {
+        continue;
+      }
+
+      codeCounter.set(productCode, (codeCounter.get(productCode) ?? 0) + 1);
+    }
+
+    return new Set(
+      Array.from(codeCounter.entries())
+        .filter(([, count]) => count > 1)
+        .map(([code]) => code)
+    );
+  }
+
+  private async getExistingProductCodeSet(productCodes: string[]): Promise<Set<string>> {
+    const normalizedCodes = Array.from(
+      new Set(productCodes.map((item) => this.normalizeText(item)).filter(Boolean))
+    );
+
+    if (!normalizedCodes.length) {
+      return new Set();
+    }
+
+    const rows = await this.db
+      .select({ productCode: schema.products.productCode })
+      .from(schema.products)
+      .where(inArray(schema.products.productCode, normalizedCodes));
+
+    return new Set(rows.map((item: { productCode: string }) => this.normalizeText(item.productCode)).filter(Boolean));
+  }
+
   private stripJsonBlock(content: string): string {
     return content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
   }
@@ -524,6 +561,18 @@ export class ProductImportService {
 
     if (issues.some((item) => item.level === 'error')) {
       throw new Error('导入数据校验未通过，请先修正错误项');
+    }
+
+    const duplicateCodesInDrafts = this.findDuplicateCodesInDrafts(normalizedDrafts);
+    if (duplicateCodesInDrafts.size > 0) {
+      throw new Error(`存在重复款号：${Array.from(duplicateCodesInDrafts).join('、')}`);
+    }
+
+    const existingProductCodeSet = await this.getExistingProductCodeSet(
+      normalizedDrafts.map((draft) => draft.productCode)
+    );
+    if (existingProductCodeSet.size > 0) {
+      throw new Error(`以下款号已存在：${Array.from(existingProductCodeSet).join('、')}`);
     }
 
     const supplierMap = new Map<string, Supplier>();

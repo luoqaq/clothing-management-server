@@ -38,3 +38,107 @@ describe('ProductImportService.parseExcelFileImport', () => {
     ]);
   });
 });
+
+describe('ProductImportService.bulkCreateProducts', () => {
+  it('blocks duplicated product codes inside the same import batch before writing', async () => {
+    const service = new ProductImportService({
+      select() {
+        return {
+          from() {
+            return {
+              where: async () => [],
+            };
+          },
+        };
+      },
+    } as any);
+
+    (service as any).productsService.getCategories = async () => [{ id: 1, name: '上衣' }];
+    (service as any).productsService.getSuppliers = async () => [];
+
+    await expect(
+      service.bulkCreateProducts(
+        [
+          {
+            rowKey: 'row-1',
+            source: 'excel',
+            productCode: 'TOP001',
+            name: '上衣 A',
+            description: '',
+            categoryId: 1,
+            categoryName: '上衣',
+            supplierId: null,
+            supplierName: null,
+            tags: [],
+            status: 'active',
+            specifications: [{ rowKey: 'row-1-spec-1', barcode: null, color: '黑色', size: 'M', salePrice: 199, costPrice: 99, stock: 1, status: 'active' }],
+          },
+          {
+            rowKey: 'row-2',
+            source: 'excel',
+            productCode: 'TOP001',
+            name: '上衣 B',
+            description: '',
+            categoryId: 1,
+            categoryName: '上衣',
+            supplierId: null,
+            supplierName: null,
+            tags: [],
+            status: 'active',
+            specifications: [{ rowKey: 'row-2-spec-1', barcode: null, color: '白色', size: 'L', salePrice: 199, costPrice: 99, stock: 1, status: 'active' }],
+          },
+        ] as any,
+        false
+      )
+    ).rejects.toThrow('存在重复款号：TOP001');
+  });
+
+  it('blocks import when product codes already exist in database', async () => {
+    const service = new ProductImportService({
+      select(selection?: unknown) {
+        if (selection) {
+          return {
+            from() {
+              return {
+                where: async () => [{ productCode: 'TOP001' }],
+              };
+            },
+          };
+        }
+
+        return {
+          from() {
+            return {
+              where: async () => [],
+            };
+          },
+        };
+      },
+    } as any);
+
+    (service as any).productsService.getCategories = async () => [{ id: 1, name: '上衣' }];
+    (service as any).productsService.getSuppliers = async () => [];
+
+    await expect(
+      service.bulkCreateProducts(
+        [
+          {
+            rowKey: 'row-1',
+            source: 'excel',
+            productCode: 'TOP001',
+            name: '上衣 A',
+            description: '',
+            categoryId: 1,
+            categoryName: '上衣',
+            supplierId: null,
+            supplierName: null,
+            tags: [],
+            status: 'active',
+            specifications: [{ rowKey: 'row-1-spec-1', barcode: null, color: '黑色', size: 'M', salePrice: 199, costPrice: 99, stock: 1, status: 'active' }],
+          },
+        ] as any,
+        false
+      )
+    ).rejects.toThrow('以下款号已存在：TOP001');
+  });
+});

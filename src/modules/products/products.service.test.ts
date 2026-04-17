@@ -223,4 +223,151 @@ describe('ProductsService', () => {
     expect(getInsertedSkuRows()[0]?.cumulativeInboundQuantity).toBe(8);
     expect(getInsertedSkuRows()[0]?.cumulativeCostAmount).toBe('400');
   });
+
+  it('blocks creating a product when the product code already exists', async () => {
+    const db = {
+      select(selection?: unknown) {
+        if (selection) {
+          return {
+            from(table: unknown) {
+              if (table === schema.products) {
+                return {
+                  where: async () => [{ count: 1 }],
+                };
+              }
+
+              return {
+                where: async () => [],
+              };
+            },
+          };
+        }
+
+        return {
+          from() {
+            return {
+              where: async () => [],
+            };
+          },
+        };
+      },
+      insert() {
+        throw new Error('should not insert when product code is duplicated');
+      },
+    };
+
+    const service = new ProductsService(db as any);
+
+    await expect(
+      service.createProduct({
+        productCode: 'TOP001',
+        name: '重复款号商品',
+        description: '',
+        categoryId: 1,
+        supplierId: null,
+        mainImages: [],
+        detailImages: [],
+        tags: [],
+        status: 'active',
+        specifications: [
+          {
+            id: 0,
+            productId: 0,
+            skuCode: '',
+            barcode: null,
+            color: '黑色',
+            size: 'M',
+            salePrice: 199,
+            costPrice: 99,
+            stock: 1,
+            reservedStock: 0,
+            availableStock: 1,
+            cumulativeInboundQuantity: 1,
+            cumulativeCostAmount: 99,
+            status: 'active',
+            createdAt: '',
+            updatedAt: '',
+          },
+        ],
+        specCount: 0,
+        totalStock: 0,
+        reservedStock: 0,
+        availableStock: 0,
+        minPrice: 0,
+        maxPrice: 0,
+        category: undefined,
+        supplier: undefined,
+      } as any)
+    ).rejects.toThrow('款号 TOP001 已存在');
+  });
+
+  it('blocks updating a product to a duplicated product code', async () => {
+    const db = {
+      select(selection?: unknown) {
+        if (selection) {
+          return {
+            from(table: unknown) {
+              if (table === schema.products) {
+                return {
+                  where: async () => [{ count: 1 }],
+                };
+              }
+
+              return {
+                where: async () => [],
+              };
+            },
+          };
+        }
+
+        return {
+          from(table: unknown) {
+            if (table === schema.products) {
+              return {
+                where: async () => [
+                  {
+                    id: 7,
+                    productCode: 'TOP001',
+                    name: '法式上衣',
+                    description: '',
+                    categoryId: 1,
+                    supplierId: null,
+                    mainImages: [],
+                    detailImages: [],
+                    tags: [],
+                    status: 'active',
+                    createdAt: '2026-04-04 12:00:00',
+                    updatedAt: '2026-04-04 12:00:00',
+                  },
+                ],
+              };
+            }
+
+            if (table === schema.productSkus) {
+              return {
+                where: async () => [],
+              };
+            }
+
+            return {
+              where: async () => [],
+            };
+          },
+        };
+      },
+      update() {
+        throw new Error('should not update when product code is duplicated');
+      },
+    };
+
+    const service = new ProductsService(db as any);
+    service.getCategories = async () => [];
+    service.getSuppliers = async () => [];
+
+    await expect(
+      service.updateProduct(7, {
+        productCode: 'TOP002',
+      } as any)
+    ).rejects.toThrow('款号 TOP002 已存在');
+  });
 });

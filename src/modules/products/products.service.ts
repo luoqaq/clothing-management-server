@@ -64,6 +64,25 @@ export class ProductsService {
     return [...parts, `P${productId}`].join('-');
   }
 
+  private normalizeProductCode(code: unknown): string {
+    return String(code ?? '').trim();
+  }
+
+  private async ensureProductCodeAvailable(code: unknown, excludeId?: number): Promise<string> {
+    const normalizedCode = this.normalizeProductCode(code);
+
+    if (!normalizedCode) {
+      throw new Error('款号不能为空');
+    }
+
+    const exists = await this.checkProductCodeExists(normalizedCode, excludeId);
+    if (exists) {
+      throw new Error(`款号 ${normalizedCode} 已存在`);
+    }
+
+    return normalizedCode;
+  }
+
   private normalizeSpecification(row: any): ProductSpecification {
     const stock = Number(row.stock ?? 0);
     const reservedStock = Number(row.reservedStock ?? 0);
@@ -275,7 +294,7 @@ export class ProductsService {
   }
 
   async checkProductCodeExists(code: string, excludeId?: number): Promise<boolean> {
-    const normalizedCode = String(code ?? '').trim();
+    const normalizedCode = this.normalizeProductCode(code);
     if (!normalizedCode) {
       throw new Error('款号不能为空');
     }
@@ -296,10 +315,12 @@ export class ProductsService {
   }
 
   async createProduct(data: ProductPayload): Promise<Product> {
+    const normalizedProductCode = await this.ensureProductCodeAvailable(data.productCode);
+
     const result = await this.db
       .insert(schema.products)
       .values({
-        productCode: data.productCode,
+        productCode: normalizedProductCode,
         name: data.name,
         description: data.description,
         categoryId: data.categoryId,
@@ -319,7 +340,7 @@ export class ProductsService {
     await this.db.insert(schema.productSkus).values(
       data.specifications.map((item, index) => ({
         productId: insertedId,
-        skuCode: this.buildSkuCode(insertedId, data.productCode, item.size, item.color),
+        skuCode: this.buildSkuCode(insertedId, normalizedProductCode, item.size, item.color),
         barcode: this.buildPendingBarcode(insertedId, index),
         color: item.color,
         size: item.size,
@@ -366,8 +387,13 @@ export class ProductsService {
       return null;
     }
 
+    const nextProductCode =
+      data.productCode !== undefined
+        ? await this.ensureProductCodeAvailable(data.productCode, id)
+        : existing.productCode;
+
     const productUpdates: Record<string, unknown> = {};
-    if (data.productCode !== undefined) productUpdates.productCode = data.productCode;
+    if (data.productCode !== undefined) productUpdates.productCode = nextProductCode;
     if (data.name !== undefined) productUpdates.name = data.name;
     if (data.description !== undefined) productUpdates.description = data.description;
     if (data.categoryId !== undefined) productUpdates.categoryId = data.categoryId;
@@ -381,7 +407,6 @@ export class ProductsService {
       await this.db.update(schema.products).set(productUpdates).where(eq(schema.products.id, id));
     }
 
-    const nextProductCode = data.productCode ?? existing.productCode;
     const specificationsToPersist = data.specifications ?? existing.specifications;
     const existingBarcodeMap = new Map(
       existing.specifications.map((item) => [Number(item.id), item.barcode])
