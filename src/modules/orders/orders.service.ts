@@ -24,6 +24,10 @@ export class OrdersService {
     return formatDateTimeUtil(value) ?? undefined;
   }
 
+  private normalizeOrderStatus(status: unknown): 'confirmed' | 'cancelled' {
+    return ['cancelled', 'refunded'].includes(String(status ?? '')) ? 'cancelled' : 'confirmed';
+  }
+
   private isSchemaCompatibilityError(error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     return (
@@ -137,7 +141,7 @@ export class OrdersService {
     await this.syncCustomerProfileByOrder(Number(order.id));
   }
 
-  private async buildOrder(orderRow: any): Promise<Order | null> {
+  private async buildOrder(orderRow: any, normalizeStatus = true): Promise<Order | null> {
     if (!orderRow) {
       return null;
     }
@@ -196,7 +200,7 @@ export class OrdersService {
       totalAmount: Number(orderRow.totalAmount ?? 0),
       discountAmount: Number(orderRow.discountAmount ?? 0),
       finalAmount: Number(orderRow.finalAmount ?? 0),
-      status: orderRow.status,
+      status: (normalizeStatus ? this.normalizeOrderStatus(orderRow.status) : orderRow.status) as OrderStatus,
       address: (typeof orderRow.address === 'string' ? JSON.parse(orderRow.address) : orderRow.address) ?? {},
       note: orderRow.note ?? undefined,
       paymentMethod: orderRow.paymentMethod ?? undefined,
@@ -239,7 +243,21 @@ export class OrdersService {
       );
     }
 
-    if (status) {
+    if (status === 'confirmed') {
+      whereConditions.push(
+        and(
+          ne(schema.orders.status, 'cancelled'),
+          ne(schema.orders.status, 'refunded')
+        )
+      );
+    } else if (status === 'cancelled') {
+      whereConditions.push(
+        or(
+          eq(schema.orders.status, 'cancelled'),
+          eq(schema.orders.status, 'refunded')
+        )
+      );
+    } else if (status) {
       whereConditions.push(eq(schema.orders.status, status));
     }
 
@@ -306,7 +324,7 @@ export class OrdersService {
         .offset(offset);
     }
 
-    const items = (await Promise.all(rows.map((row: any) => this.buildOrder(row)))).filter(Boolean) as Order[];
+    const items = (await Promise.all(rows.map((row: any) => this.buildOrder(row, true)))).filter(Boolean) as Order[];
     
     const totalQuery = await this.db.select({ count: count() }).from(schema.orders).where(whereClause);
 
@@ -319,7 +337,7 @@ export class OrdersService {
   async getOrder(id: number): Promise<Order | null> {
     try {
       const rows = await this.db.select().from(schema.orders).where(eq(schema.orders.id, id));
-      return this.buildOrder(this.firstRow(rows));
+      return this.buildOrder(this.firstRow(rows), true);
     } catch (error) {
       if (!this.isSchemaCompatibilityError(error)) {
         throw error;
@@ -351,13 +369,52 @@ export class OrdersService {
         })
         .from(schema.orders)
         .where(eq(schema.orders.id, id));
-      return this.buildOrder(this.firstRow(rows));
+      return this.buildOrder(this.firstRow(rows), true);
+    }
+  }
+
+  private async getOrderForMutation(id: number): Promise<Order | null> {
+    try {
+      const rows = await this.db.select().from(schema.orders).where(eq(schema.orders.id, id));
+      return this.buildOrder(this.firstRow(rows), false);
+    } catch (error) {
+      if (!this.isSchemaCompatibilityError(error)) {
+        throw error;
+      }
+      const rows = await this.db
+        .select({
+          id: schema.orders.id,
+          orderNo: schema.orders.orderNo,
+          source: schema.orders.source,
+          customerName: schema.orders.customerName,
+          customerPhone: schema.orders.customerPhone,
+          customerEmail: schema.orders.customerEmail,
+          totalAmount: schema.orders.totalAmount,
+          discountAmount: schema.orders.discountAmount,
+          finalAmount: schema.orders.finalAmount,
+          status: schema.orders.status,
+          address: schema.orders.address,
+          note: schema.orders.note,
+          paymentMethod: schema.orders.paymentMethod,
+          paymentStatus: schema.orders.paymentStatus,
+          shippingCompany: schema.orders.shippingCompany,
+          trackingNumber: schema.orders.trackingNumber,
+          cancelReason: schema.orders.cancelReason,
+          refundReason: schema.orders.refundReason,
+          shippedAt: schema.orders.shippedAt,
+          deliveredAt: schema.orders.deliveredAt,
+          createdAt: schema.orders.createdAt,
+          updatedAt: schema.orders.updatedAt,
+        })
+        .from(schema.orders)
+        .where(eq(schema.orders.id, id));
+      return this.buildOrder(this.firstRow(rows), false);
     }
   }
 
   async createOrder(data: CreateOrderPayload): Promise<Order> {
     const orderNo = this.generateOrderNo();
-    const reservedItems: Array<{ skuId: number; quantity: number }> = [];
+    const deductedItems: Array<{ skuId: number; quantity: number }> = [];
 
     try {
       const enrichedItems = await Promise.all(
@@ -382,8 +439,8 @@ export class OrdersService {
             throw new Error('商品不存在');
           }
 
-          await this.productsService.reserveSpecificationStock(Number(sku.id), item.quantity);
-          reservedItems.push({ skuId: Number(sku.id), quantity: item.quantity });
+          await this.productsService.deductSpecificationStock(Number(sku.id), item.quantity);
+          deductedItems.push({ skuId: Number(sku.id), quantity: item.quantity });
 
           const originalPrice = Number(sku.salePrice ?? 0);
           const soldPrice = item.soldPrice ?? originalPrice;
@@ -405,7 +462,7 @@ export class OrdersService {
 
       const totalAmount = enrichedItems.reduce((sum, item) => sum + item.soldPrice * item.quantity, 0);
       const finalAmount = totalAmount;
-      const nextStatus = data.status ?? 'pending';
+      const nextStatus = 'confirmed';
       const paymentStatus = data.paymentStatus ?? 'paid';
       const paidAt = paymentStatus === 'paid' ? new Date() : null;
 
@@ -499,12 +556,6 @@ export class OrdersService {
         );
       }
 
-      if (nextStatus === 'confirmed') {
-        for (const item of enrichedItems) {
-          await this.productsService.finalizeShippedStock(item.skuId, item.quantity);
-        }
-      }
-
       if (paymentStatus === 'paid' && data.customerPhone) {
         await this.syncCustomerProfileByOrder(orderId, typeof data.ageBucketId === 'number' ? data.ageBucketId : null);
       }
@@ -516,9 +567,9 @@ export class OrdersService {
 
       return order;
     } catch (error) {
-      for (const item of reservedItems.reverse()) {
+      for (const item of deductedItems.reverse()) {
         try {
-          await this.productsService.releaseSpecificationStock(item.skuId, item.quantity);
+          await this.productsService.restoreSpecificationStock(item.skuId, item.quantity);
         } catch {
           // Best-effort rollback for compatibility-mode failures.
         }
@@ -528,71 +579,48 @@ export class OrdersService {
   }
 
   async updateOrderStatus(id: number, status: OrderStatus): Promise<Order | null> {
-    const order = await this.getOrder(id);
+    const order = await this.getOrderForMutation(id);
     if (!order) {
       return null;
     }
 
-    if (status === 'cancelled' || status === 'refunded') {
-      throw new Error('请使用专用的取消或退款接口');
+    if (status !== 'confirmed') {
+      throw new Error('门店订单仅支持已确认或已取消');
     }
 
-    if (status === 'shipped') {
-      throw new Error('请使用发货接口');
+    if (order.status === 'cancelled' || order.status === 'refunded') {
+      throw new Error('已取消订单不能再修改状态');
     }
 
-    if (status === 'confirmed' && order.status === 'pending') {
+    if (order.status === 'pending') {
       for (const item of order.items) {
         await this.productsService.finalizeShippedStock(item.skuId, item.quantity);
       }
     }
 
-    const updates: Record<string, unknown> = { status };
-    if (status === 'delivered') {
-      updates.deliveredAt = new Date();
-    }
-
-    await this.db.update(schema.orders).set(updates).where(eq(schema.orders.id, id));
+    await this.db.update(schema.orders).set({ status: 'confirmed' }).where(eq(schema.orders.id, id));
     return this.getOrder(id);
   }
 
   async shipOrder(
     id: number,
-    shippingInfo: { trackingNumber: string; shippingCompany: string }
+    _shippingInfo: { trackingNumber: string; shippingCompany: string }
   ): Promise<Order | null> {
-    const order = await this.getOrder(id);
+    const order = await this.getOrderForMutation(id);
     if (!order) {
       return null;
     }
 
-    if (order.status !== 'confirmed') {
-      throw new Error('只有已确认订单才能发货');
-    }
-
-    for (const item of order.items) {
-      await this.productsService.finalizeShippedStock(item.skuId, item.quantity);
-    }
-
-    await this.db
-      .update(schema.orders)
-      .set({
-        status: 'shipped',
-        shippingCompany: shippingInfo.shippingCompany,
-        trackingNumber: shippingInfo.trackingNumber,
-        shippedAt: new Date(),
-      })
-      .where(eq(schema.orders.id, id));
-
-    return this.getOrder(id);
+    throw new Error('门店订单流程不包含发货状态');
   }
 
   async cancelOrder(id: number, reason: string): Promise<Order | null> {
-    const order = await this.getOrder(id);
+    const order = await this.getOrderForMutation(id);
     if (!order) {
       return null;
     }
 
-    if (!['pending', 'confirmed'].includes(order.status)) {
+    if (['cancelled', 'refunded'].includes(order.status)) {
       throw new Error('当前订单状态不可取消');
     }
 
@@ -619,36 +647,12 @@ export class OrdersService {
     return this.getOrder(id);
   }
 
-  async refundOrder(id: number, data: { amount: number; reason: string }): Promise<Order | null> {
-    const order = await this.getOrder(id);
+  async refundOrder(id: number, _data: { amount: number; reason: string }): Promise<Order | null> {
+    const order = await this.getOrderForMutation(id);
     if (!order) {
       return null;
     }
-
-    if (order.paymentStatus !== 'paid' || ['cancelled', 'refunded', 'pending'].includes(order.status)) {
-      throw new Error('当前订单状态不可退款');
-    }
-
-    if (order.status === 'confirmed') {
-      for (const item of order.items) {
-        await this.productsService.restoreSpecificationStock(item.skuId, item.quantity);
-      }
-    }
-
-    await this.db
-      .update(schema.orders)
-      .set({
-        status: 'refunded',
-        paymentStatus: 'refunded',
-        refundReason: data.reason,
-      })
-      .where(eq(schema.orders.id, id));
-
-    if (order.customerPhone) {
-      await this.syncCustomerProfileByPhone(order.customerPhone);
-    }
-
-    return this.getOrder(id);
+    throw new Error('门店订单流程不包含退款状态');
   }
 
   private generateOrderNo(): string {

@@ -18,7 +18,7 @@ export const orderSchema = z.object({
   totalAmount: z.number().min(0, '订单金额不能为负数').optional(),
   discountAmount: z.number().min(0).optional(),
   finalAmount: z.number().min(0, '实付金额不能为负数').optional(),
-  status: z.enum(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled', 'refunded']).optional(),
+  status: z.enum(['confirmed']).optional(),
   address: z.object({
     name: z.string().optional(),
     phone: z.string().optional(),
@@ -34,7 +34,7 @@ export const orderSchema = z.object({
 });
 
 export const updateStatusSchema = z.object({
-  status: z.enum(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled', 'refunded']),
+  status: z.enum(['confirmed']),
 });
 
 export const shipOrderSchema = z.object({

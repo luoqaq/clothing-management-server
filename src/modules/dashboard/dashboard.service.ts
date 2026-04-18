@@ -22,7 +22,7 @@ export class DashboardService {
       sql`${schema.orders.createdAt} <= ${end}`
     );
 
-    const [allOrders, validOrders, cancelledOrders, pendingOrders, products, activeSkus, orderItems] = await Promise.all([
+    const [allOrders, validOrders, cancelledOrders, products, activeSkus, orderItems] = await Promise.all([
       this.db
         .select({ id: schema.orders.id })
         .from(schema.orders)
@@ -45,10 +45,6 @@ export class DashboardService {
             eq(schema.orders.status, 'cancelled')
           )
         ),
-      this.db
-        .select({ id: schema.orders.id })
-        .from(schema.orders)
-        .where(eq(schema.orders.status, 'pending')),
       this.db
         .select({ id: schema.products.id })
         .from(schema.products),
@@ -104,7 +100,7 @@ export class DashboardService {
       salesAmount,
       grossProfit,
       cancelledCount: cancelledOrders.length,
-      pendingOrderCount: pendingOrders.length,
+      pendingOrderCount: 0,
       lowStockCount,
       totalProductCount: products.length,
       latestOrders: latestOrders.items,

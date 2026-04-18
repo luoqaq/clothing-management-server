@@ -588,6 +588,29 @@ export class ProductsService {
       .where(eq(schema.productSkus.id, specificationId));
   }
 
+  async deductSpecificationStock(specificationId: number, quantity: number): Promise<void> {
+    const rows = await this.db.select().from(schema.productSkus).where(eq(schema.productSkus.id, specificationId));
+    const specification = this.firstRow(rows);
+    if (!specification) {
+      throw new Error('规格不存在');
+    }
+
+    const stock = Number(specification.stock ?? 0);
+    const reservedStock = Number(specification.reservedStock ?? 0);
+    const availableStock = stock - reservedStock;
+
+    if (availableStock < quantity) {
+      throw new Error(`规格 ${specification.skuCode} 可售库存不足`);
+    }
+
+    await this.db
+      .update(schema.productSkus)
+      .set({
+        stock: Math.max(stock - quantity, 0),
+      })
+      .where(eq(schema.productSkus.id, specificationId));
+  }
+
   async releaseSpecificationStock(specificationId: number, quantity: number): Promise<void> {
     const rows = await this.db.select().from(schema.productSkus).where(eq(schema.productSkus.id, specificationId));
     const specification = this.firstRow(rows);

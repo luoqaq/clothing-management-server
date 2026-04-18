@@ -82,9 +82,36 @@
 - 线上状态、提交号、服务启动时间这类信息不保存在长期记忆里；涉及上线状态时重新巡检，不依赖历史快照。
 
 ## 最近新增经验
+- 订单库存流转当前约定是“确认即扣减、发货不再重复扣减”；退款时只要订单已进入 `confirmed / shipped / delivered` 任一已扣减状态，都需要回补库存。后续若再改订单状态机，务必一起核对 `shipOrder / refundOrder / cancelOrder` 三处库存逻辑，避免库存与可售口径漂移。
+- 商品编辑当前仍是“整组删 SKU 再重建”的实现；若前端把旧规格的 `reservedStock` 一起带回，历史脏占用会迁移到新规格。后端已改为只在“同一规格颜色和尺码都未变化”时保留原占用，前端商品表单也不再回传隐藏的 `reservedStock`。
 - 订单列表分页排序必须使用稳定排序键；仅按 `created_at desc` 在同秒多单场景下可能导致跨页重复或乱序，后端查询应至少补 `id desc` 作为二级排序，并避免在分页后再做与数据库排序口径不同的二次排序。
 - Web 管理端订单列表现已支持按 `createdAt` 升序/降序切换；后端应继续把排序作为分页查询参数处理，并保持二级稳定排序键，避免只在当前页做本地排序导致翻页错乱。
 - 商品 Excel 导入现已支持两条链路并存：桌面端保留“前端本地解析再传 JSON”，Pad 端新增“原始 Excel 文件直传后端解析”，后端文件解析需复用现有 JSON 解析逻辑，避免 prompt 和草稿标准化分叉。
+
+### 会话日期：2026-04-18
+- 变更内容：
+  - 修复订单库存状态流转：已确认订单发货时不再二次扣减库存；已发货/已送达订单退款时会正确回补库存。
+  - 为库存流转补充单测，覆盖“confirmed -> shipped 不重复扣减”和“shipped -> refunded 回补库存”。
+  - 生产排查 `CC9-007-M-冰水蓝-11-P7` 时确认：`reserved_stock=2` 不是被当前订单直接占用，而是旧规格的历史脏占用在 2026-04-16 编辑商品时被迁移到了新规格；已将线上 `sku_id=540` 校正为 `reserved_stock=0`。
+  - 后端商品更新逻辑已改为仅在规格颜色和尺码未变化时才保留原占用，并补单测覆盖“改色/改码后清空旧占用”。
+- 验证结果：
+  - `bun test src/modules/orders/orders.service.test.ts` 通过。
+  - `npm run build` 通过。
+  - `bun test src/modules/products/products.service.test.ts` 通过。
+  - 生产已发布后台与后端，`/health` 返回成功，`https://clothing.chuchu9.cn/` 返回 `200`，`https://clothing.chuchu9.cn/api/auth/me` 未登录返回 `401`。
+- 遗留问题或风险：
+  - 这次修复覆盖后端库存状态机，但未回溯清理历史上若已被重复扣减的线上数据；如现场仍有异常 SKU，需要按订单历史核对并手动校正库存。
+
+### 会话日期：2026-04-18
+- 变更内容：
+  - 门店订单状态机已按业务收口为“已确认 / 已取消”：创建订单时固定落 `confirmed`，取消订单时回补库存，不再在门店录单链路里新增 `reservedStock` 占用。
+  - 订单查询结果会把历史 `pending / shipped / delivered` 统一归一成 `confirmed`，把 `refunded` 归一成 `cancelled`，前端不再看到多余状态。
+  - `shipOrder / refundOrder` 已改为直接拒绝，避免门店流程再走发货、退款状态流转；仪表盘 `pendingOrderCount` 也固定归零。
+- 验证结果：
+  - `bun test src/modules/orders/orders.service.test.ts src/modules/products/products.service.test.ts` 通过。
+  - `npm run build` 通过。
+- 遗留问题或风险：
+  - 数据库状态枚举暂未收缩，当前是应用层对历史状态做兼容归一；若后续要彻底删掉旧状态，仍需补数据库层迁移与历史数据清理方案。
 
 ## 最近会话摘要
 
