@@ -17,6 +17,7 @@ const ALLOWED_ACTIONS = [
 const SCENE_PREFIX: Record<UploadPolicyInput['scene'], string> = {
   main: 'main',
   detail: 'detail',
+  spec: 'spec',
   logo: 'logo',
   avatar: 'avatar',
 };
@@ -28,7 +29,7 @@ const BIZ_PREFIX: Record<UploadPolicyInput['biz'], string> = {
 };
 
 const SCENE_COMPATIBILITY: Record<UploadPolicyInput['biz'], UploadPolicyInput['scene'][]> = {
-  product: ['main', 'detail'],
+  product: ['main', 'detail', 'spec'],
   brand: ['logo'],
   avatar: ['avatar'],
 };

@@ -68,6 +68,7 @@ export interface ProductSpecification {
   availableStock: number;
   cumulativeInboundQuantity: number;
   cumulativeCostAmount: number;
+  image?: string | null;
   status: ProductSpecificationStatus;
   createdAt: string;
   updatedAt: string;

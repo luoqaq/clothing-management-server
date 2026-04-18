@@ -449,7 +449,7 @@ export class OrdersService {
             skuId: Number(sku.id),
             productName: product.name,
             skuCode: sku.skuCode,
-            image: Array.isArray(product.mainImages) ? product.mainImages[0] ?? null : null,
+            image: sku.image ?? (Array.isArray(product.mainImages) ? product.mainImages[0] ?? null : null),
             price: originalPrice,
             soldPrice: soldPrice,
             costPriceSnapshot: Number(sku.costPrice ?? 0),

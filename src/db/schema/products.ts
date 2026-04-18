@@ -55,6 +55,7 @@ export const productSkus = mysqlTable('product_skus', {
   reservedStock: int('reserved_stock').default(0).notNull(),
   cumulativeInboundQuantity: int('cumulative_inbound_quantity').default(0).notNull(),
   cumulativeCostAmount: decimal('cumulative_cost_amount', { precision: 12, scale: 2 }).default('0.00').notNull(),
+  image: varchar('image', { length: 500 }),
   status: mysqlEnum('status', ['active', 'inactive']).default('active').notNull(),
   createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: datetime('updated_at').default(sql`CURRENT_TIMESTAMP`).notNull(),

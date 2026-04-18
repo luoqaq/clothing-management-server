@@ -10,6 +10,7 @@ const specificationSchema = z.object({
   costPrice: z.number().min(0, '成本价不能为负数'),
   stock: z.number().int().min(0, '库存不能为负数'),
   reservedStock: z.number().int().min(0).optional(),
+  image: z.string().optional().nullable(),
   status: z.enum(['active', 'inactive']).optional(),
 });
 
@@ -23,7 +24,20 @@ export const productSchema = z.object({
   detailImages: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   status: z.enum(['draft', 'active', 'inactive']).optional(),
-  specifications: z.array(specificationSchema).min(1, '至少需要一个规格'),
+  specifications: z.array(specificationSchema)
+    .min(1, '至少需要一个规格')
+    .refine(
+      (specs) => {
+        const keys = new Set<string>();
+        for (const spec of specs) {
+          const key = `${spec.color}/${spec.size}`;
+          if (keys.has(key)) return false;
+          keys.add(key);
+        }
+        return true;
+      },
+      { message: '规格中存在重复的颜色和尺码组合' }
+    ),
 });
 
 export const categorySchema = z.object({

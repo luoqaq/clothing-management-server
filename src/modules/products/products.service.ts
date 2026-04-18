@@ -103,6 +103,7 @@ export class ProductsService {
       availableStock: Math.max(stock - reservedStock, 0),
       cumulativeInboundQuantity,
       cumulativeCostAmount,
+      image: row.image ?? null,
       status: row.status,
       createdAt: formatDateTime(row.createdAt) ?? '',
       updatedAt: formatDateTime(row.updatedAt) ?? '',
@@ -350,6 +351,7 @@ export class ProductsService {
         reservedStock: item.reservedStock ?? 0,
         cumulativeInboundQuantity: item.stock,
         cumulativeCostAmount: String(item.stock * item.costPrice),
+        image: item.image ?? null,
         status: item.status ?? 'active',
       }))
     );
@@ -453,6 +455,7 @@ export class ProductsService {
             item.id && existingSpecificationMap.get(Number(item.id))?.cumulativeCostAmount !== undefined
               ? String(existingSpecificationMap.get(Number(item.id))?.cumulativeCostAmount)
               : String(item.cumulativeCostAmount ?? item.stock * item.costPrice),
+          image: item.image ?? null,
           status: item.status ?? 'active',
         }))
       );
@@ -478,7 +481,7 @@ export class ProductsService {
       color: specification.color,
       size: specification.size,
       salePrice: specification.salePrice,
-      image: product.mainImages[0] ?? null,
+      image: specification.image ?? product.mainImages[0] ?? null,
     }));
   }
 
@@ -527,7 +530,7 @@ export class ProductsService {
       availableStock,
       status: sku.status,
       productStatus: product.status,
-      image: Array.isArray(product.mainImages) ? product.mainImages[0] ?? null : null,
+      image: sku.image ?? (Array.isArray(product.mainImages) ? product.mainImages[0] ?? null : null),
     };
   }
 
