@@ -224,6 +224,38 @@ describe('ProductsService', () => {
     expect(getInsertedSkuRows()[0]?.cumulativeCostAmount).toBe('400');
   });
 
+  it('clears reserved stock when an existing specification is changed into a different color or size', async () => {
+    const { db, getInsertedSkuRows } = createUpdateProductDbMock();
+    const service = new ProductsService(db as any);
+    service.getCategories = async () => [];
+    service.getSuppliers = async () => [];
+
+    await service.updateProduct(7, {
+      specifications: [
+        {
+          id: 12,
+          productId: 7,
+          skuCode: 'TOP001-M-蓝-P7',
+          barcode: 'SKU0000000012',
+          color: '蓝色',
+          size: 'M',
+          salePrice: 199,
+          costPrice: 50,
+          stock: 2,
+          reservedStock: 99,
+          availableStock: 0,
+          cumulativeInboundQuantity: 0,
+          cumulativeCostAmount: 0,
+          status: 'active',
+          createdAt: '',
+          updatedAt: '',
+        } as any,
+      ],
+    });
+
+    expect(getInsertedSkuRows()[0]?.reservedStock).toBe(0);
+  });
+
   it('blocks creating a product when the product code already exists', async () => {
     const db = {
       select(selection?: unknown) {

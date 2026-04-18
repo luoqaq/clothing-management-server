@@ -415,6 +415,9 @@ export class ProductsService {
       existing.specifications.map((item) => [
         Number(item.id),
         {
+          color: item.color,
+          size: item.size,
+          reservedStock: item.reservedStock,
           cumulativeInboundQuantity: item.cumulativeInboundQuantity,
           cumulativeCostAmount: item.cumulativeCostAmount,
         },
@@ -436,7 +439,12 @@ export class ProductsService {
           salePrice: String(item.salePrice),
           costPrice: String(item.costPrice),
           stock: item.stock,
-          reservedStock: item.reservedStock ?? 0,
+          reservedStock:
+            item.id &&
+            existingSpecificationMap.get(Number(item.id))?.color === item.color &&
+            existingSpecificationMap.get(Number(item.id))?.size === item.size
+              ? Number(existingSpecificationMap.get(Number(item.id))?.reservedStock ?? 0)
+              : 0,
           cumulativeInboundQuantity:
             item.id && existingSpecificationMap.get(Number(item.id))?.cumulativeInboundQuantity !== undefined
               ? existingSpecificationMap.get(Number(item.id))?.cumulativeInboundQuantity
