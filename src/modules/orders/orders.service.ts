@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, like, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, like, ne, or, sql } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { Order, OrderFilters, OrderItem, OrderSource, OrderStatus } from '../../types';
 import dayjs from 'dayjs';
@@ -234,13 +234,33 @@ export class OrdersService {
     const whereConditions: any[] = [];
 
     if (search) {
-      whereConditions.push(
-        or(
-          like(schema.orders.customerName, `%${search}%`),
-          like(schema.orders.customerPhone, `%${search}%`),
-          like(schema.orders.orderNo, `%${search}%`)
-        )
-      );
+      let matchedOrderIds: number[] = [];
+      try {
+        const itemRows = await this.db
+          .select({ orderId: schema.orderItems.orderId })
+          .from(schema.orderItems)
+          .where(
+            or(
+              like(schema.orderItems.productName, `%${search}%`),
+              like(schema.orderItems.skuCode, `%${search}%`)
+            )
+          );
+        matchedOrderIds = itemRows.map((r: any) => Number(r.orderId));
+      } catch {
+        // Best-effort: ignore schema compatibility errors
+      }
+
+      const searchConditions: any[] = [
+        like(schema.orders.customerName, `%${search}%`),
+        like(schema.orders.customerPhone, `%${search}%`),
+        like(schema.orders.orderNo, `%${search}%`),
+      ];
+
+      if (matchedOrderIds.length > 0) {
+        searchConditions.push(inArray(schema.orders.id, matchedOrderIds));
+      }
+
+      whereConditions.push(or(...searchConditions));
     }
 
     if (status === 'confirmed') {
