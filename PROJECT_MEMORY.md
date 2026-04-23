@@ -1,6 +1,6 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-04-11
+最近更新：2026-04-23
 
 ## 仓库与环境
 - 路径：`/Users/luo/Project/clothing-management-server`
@@ -63,6 +63,13 @@
 - 发布脚本已收敛为干净工作区检查 + 锁文件冻结安装；若发布前被脏工作区拦截，优先检查 `bun.lock`、`package-lock.json`、本地 stash 和未提交 migration 文件。
 - 生产机构建/重启链路存在环境差异时，优先走仓库内标准脚本和现有 skills，不要手工拼命令上线。
 
+## 上线版本记录
+- 当前最新发布版本：`release-20260423.1`
+- 版本递增规则：每次上线前读取本节，按 `release-YYYYMMDD.N` 递增；同一天多次上线递增 `.N`。
+- 上线前说明必须包含：本次版本号、后端 commit、发布范围、是否包含数据库结构变更或数据修复。
+- 数据库相关上线说明必须包含：`drizzle/*.sql` 状态、生产库结构核对结果、手动 SQL 执行计划、验证 SQL/API、失败后的补救方式。
+- 上线后记录必须包含：实际发布版本、commit、迁移状态、服务健康检查、关键接口验证、遗留风险。
+
 ## 关键迁移与结构约束
 - 已有历史关键迁移：
   - `0001_staff_miniapp_source.sql`：订单来源 `source`
@@ -82,6 +89,46 @@
 - 线上状态、提交号、服务启动时间这类信息不保存在长期记忆里；涉及上线状态时重新巡检，不依赖历史快照。
 
 ## 最近新增经验
+
+### 会话日期：2026-04-23
+- 变更内容：
+  - 生产发布版本 `release-20260423.1`，后端线上 commit 更新为 `293e143`。
+  - 修复销售角色新建订单时读取 `/api/customers/age-buckets` 被 `403` 拦截的问题；客户年龄段只读接口调整为登录用户可访问，客户写操作仍保持管理员权限。
+  - 销售角色订单与移动端返回中继续展示商品原价/销售价，但隐藏 `costPriceSnapshot`；工作台统计按角色隐藏毛利相关数据。
+  - 发布前确认本次没有新的数据库结构变更；生产执行 `npm run db:check-sql` 显示无待执行 SQL migration。
+- 验证结果：
+  - 本地 `npm test` 通过，`npm run build` 通过。
+  - 生产 `clothing-management-server` 服务为 `active`，本机 `/health` 返回成功。
+  - 公网 `https://clothing.chuchu9.cn/` 返回 `200`，`/api/auth/me` 未登录返回 `401`，`/api/customers/age-buckets` 未登录返回 `401`，确认已进入认证层而非角色 `403`。
+  - Nginx 配置检查通过，DNS 解析到 `101.35.255.39`。
+- 遗留问题或风险：
+  - 生产发布日志中观察到近期 `Mobile login error`，本次未展开登录失败来源排查；如门店反馈无法登录，需要单独按账号和请求日志追踪。
+  - 本地仍存在未纳入本次发布的历史 `drizzle/*.sql` 与 `drizzle/meta/*` 未跟踪文件；本次发布已明确不包含这些 migration。
+
+### 会话日期：2026-04-20
+- 变更内容：
+  - 线上后端 `/var/clothing/server/.env` 的 `AI_IMPORT_MODEL` 已从 `ep-20260331220642-rpqnk` 切换为 `ep-20260401203919-c84wx`，用于测试新的图片识别 Ark endpoint。
+  - 变更前已备份线上环境文件为 `.env.bak.20260420215720`，并重启 `clothing-management-server` 使配置生效。
+- 验证结果：
+  - 运行中进程环境变量确认 `AI_IMPORT_MODEL=ep-20260401203919-c84wx`。
+  - `systemctl is-active clothing-management-server` 返回 `active`，本机 `/health` 返回成功，公网 `/api/auth/me` 未登录返回 `401`。
+- 遗留问题或风险：
+  - 本次只验证服务启动和配置生效，尚未用真实图片导入请求验证新 endpoint 的识别质量与兼容性。
+
+### 会话日期：2026-04-19
+- 变更内容：
+  - 生产执行标准发布入口 `/var/clothing/server/deploy/release.sh all`，发布版本为 `release-20260419.1`，server 当前线上版本保持在 `59da933`。
+  - 发布前确认无待执行 SQL migration；发布过程中后端 `bun install --frozen-lockfile` 无依赖变化，并完成服务重启。
+  - 发布后商品列表报错定位为生产库 `product_skus` 缺少 `image` 列；已手动执行 `ALTER TABLE product_skus ADD COLUMN image varchar(500);` 修复。
+- 验证结果：
+  - `clothing-management-server` 服务重启后为 `active (running)`，日志显示数据库连接成功并监听 `127.0.0.1:3000`。
+  - 生产巡检通过：`/health` 返回成功，`https://clothing.chuchu9.cn/` 返回 `200`，`https://clothing.chuchu9.cn/api/auth/me` 未登录返回 `401`。
+  - 已验证 `product_skus.image` 存在，商品列表失败 SQL 对应的 `product_skus` 查询可正常返回。
+- 遗留问题或风险：
+  - 本次发布未包含新 commit 或 SQL migration，属于对当前 `origin/main` 的标准重建与服务刷新。
+  - 已修正本地 `.gitignore`，不再忽略 `drizzle` 目录；`drizzle/0008_order_item_sold_price.sql`、`drizzle/0009_sku_image.sql` 和 meta snapshot 现在会进入普通 Git 状态。
+  - 生产库 `order_items.sold_price` 与 `product_skus.image` 均已存在，但对应 SQL 文件此前未在生产工作区，后续若把 SQL 文件提交上线，需要同步核对 `__drizzle_migrations` hash 记录，避免已落库字段被误判为 pending 后重复执行。
+
 - 订单库存流转当前约定是“确认即扣减、发货不再重复扣减”；退款时只要订单已进入 `confirmed / shipped / delivered` 任一已扣减状态，都需要回补库存。后续若再改订单状态机，务必一起核对 `shipOrder / refundOrder / cancelOrder` 三处库存逻辑，避免库存与可售口径漂移。
 - 商品编辑当前仍是“整组删 SKU 再重建”的实现；若前端把旧规格的 `reservedStock` 一起带回，历史脏占用会迁移到新规格。后端已改为只在“同一规格颜色和尺码都未变化”时保留原占用，前端商品表单也不再回传隐藏的 `reservedStock`。
 - 订单列表分页排序必须使用稳定排序键；仅按 `created_at desc` 在同秒多单场景下可能导致跨页重复或乱序，后端查询应至少补 `id desc` 作为二级排序，并避免在分页后再做与数据库排序口径不同的二次排序。
