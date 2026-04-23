@@ -195,6 +195,7 @@ export class MobileController {
           startDate,
           endDate,
         },
+        role: c.get('user')?.role,
       });
 
       return c.json(
@@ -214,13 +215,13 @@ export class MobileController {
   async getOrder(c: Context) {
     try {
       const id = parseInt(c.req.param('id') || '0', 10);
-      const order = await this.service.getOrdersService().getOrder(id);
+      const order = await this.service.getOrdersService().getOrder(id, c.get('user')?.role);
 
       if (!order) {
         return c.json(error('订单不存在'), 404);
       }
 
-      return c.json(success(order));
+      return c.json(success(this.service.getOrdersService().sanitizeOrderForRole(order, c.get('user')?.role)));
     } catch (err: any) {
       logger.error('Get mobile order error:', err);
       return c.json(error(err.message), 400);
@@ -234,7 +235,7 @@ export class MobileController {
         ...payload,
         source: 'staff_miniapp',
       } as any);
-      return c.json(success(order), 201);
+      return c.json(success(this.service.getOrdersService().sanitizeOrderForRole(order, c.get('user')?.role)), 201);
     } catch (err: any) {
       logger.error('Create mobile order error:', err);
       return c.json(error(err.message), 400);
@@ -251,7 +252,7 @@ export class MobileController {
         return c.json(error('订单不存在'), 404);
       }
 
-      return c.json(success(order));
+      return c.json(success(this.service.getOrdersService().sanitizeOrderForRole(order, c.get('user')?.role)));
     } catch (err: any) {
       logger.error('Update mobile order status error:', err);
       return c.json(error(err.message), 400);
@@ -268,7 +269,7 @@ export class MobileController {
         return c.json(error('订单不存在'), 404);
       }
 
-      return c.json(success(order));
+      return c.json(success(this.service.getOrdersService().sanitizeOrderForRole(order, c.get('user')?.role)));
     } catch (err: any) {
       logger.error('Ship mobile order error:', err);
       return c.json(error(err.message), 400);
@@ -285,7 +286,7 @@ export class MobileController {
         return c.json(error('订单不存在'), 404);
       }
 
-      return c.json(success(order));
+      return c.json(success(this.service.getOrdersService().sanitizeOrderForRole(order, c.get('user')?.role)));
     } catch (err: any) {
       logger.error('Cancel mobile order error:', err);
       return c.json(error(err.message), 400);

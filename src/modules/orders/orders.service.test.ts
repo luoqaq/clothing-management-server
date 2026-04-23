@@ -212,6 +212,87 @@ describe('OrdersService.getOrders', () => {
 
     expect(dbMock.tracker.orderByArgsLength).toBe(2);
   });
+
+  it('keeps original price but hides cost snapshot for sales role', async () => {
+    const orders = [
+      {
+        id: 4,
+        orderNo: '202604230004',
+        customerName: 'Sales',
+        customerPhone: '13800000004',
+        totalAmount: '299.00',
+        discountAmount: '0.00',
+        finalAmount: '199.00',
+        paymentStatus: 'paid',
+        status: 'confirmed',
+        createdAt: new Date('2026-04-23T10:00:00'),
+      },
+    ];
+
+    const orderItems = [
+      {
+        id: 4,
+        orderId: 4,
+        productId: 10,
+        skuId: 100,
+        productName: 'Jacket',
+        skuCode: 'JK-001',
+        price: '299.00',
+        soldPrice: '199.00',
+        costPriceSnapshot: '99.00',
+        quantity: 1,
+      },
+    ];
+
+    const dbMock = createOrdersDbMock(orders, orderItems);
+    const service = new OrdersService(dbMock as any);
+
+    const result = await service.getOrders({ page: 1, pageSize: 20, role: 'sales' });
+    const item = result.items[0].items[0];
+
+    expect(item.price).toBe(299);
+    expect(item.soldPrice).toBe(199);
+    expect('costPriceSnapshot' in item).toBe(false);
+  });
+
+  it('keeps cost snapshot for admin role', async () => {
+    const orders = [
+      {
+        id: 5,
+        orderNo: '202604230005',
+        customerName: 'Admin',
+        customerPhone: '13800000005',
+        totalAmount: '299.00',
+        discountAmount: '0.00',
+        finalAmount: '199.00',
+        paymentStatus: 'paid',
+        status: 'confirmed',
+        createdAt: new Date('2026-04-23T10:00:00'),
+      },
+    ];
+
+    const orderItems = [
+      {
+        id: 5,
+        orderId: 5,
+        productId: 10,
+        skuId: 100,
+        productName: 'Jacket',
+        skuCode: 'JK-001',
+        price: '299.00',
+        soldPrice: '199.00',
+        costPriceSnapshot: '99.00',
+        quantity: 1,
+      },
+    ];
+
+    const dbMock = createOrdersDbMock(orders, orderItems);
+    const service = new OrdersService(dbMock as any);
+
+    const result = await service.getOrders({ page: 1, pageSize: 20, role: 'admin' });
+
+    expect(result.items[0].items[0].costPriceSnapshot).toBe(99);
+  });
 });
 
 describe('OrdersService inventory transitions', () => {

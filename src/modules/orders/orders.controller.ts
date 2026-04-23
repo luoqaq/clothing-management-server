@@ -39,6 +39,7 @@ export class OrdersController {
           sortBy,
           sortOrder,
         },
+        role: c.get('user')?.role,
       });
 
       return c.json(
@@ -58,7 +59,7 @@ export class OrdersController {
   async getOrder(c: Context) {
     try {
       const id = parseInt(c.req.param('id') || '0', 10);
-      const order = await this.service.getOrder(id);
+      const order = await this.service.getOrder(id, c.get('user')?.role);
 
       if (!order) {
         return c.json(error('订单不存在'), 404);
@@ -77,7 +78,7 @@ export class OrdersController {
       orderSchema.parse(data);
 
       const order = await this.service.createOrder(data);
-      return c.json(success(order), 201);
+      return c.json(success(this.service.sanitizeOrderForRole(order, c.get('user')?.role)), 201);
     } catch (err: any) {
       logger.error('Create order error:', err);
       return c.json(error(err.message), 400);
@@ -95,7 +96,7 @@ export class OrdersController {
         return c.json(error('订单不存在'), 404);
       }
 
-      return c.json(success(order));
+      return c.json(success(this.service.sanitizeOrderForRole(order, c.get('user')?.role)));
     } catch (err: any) {
       logger.error('Update order status error:', err);
       return c.json(error(err.message), 400);
@@ -113,7 +114,7 @@ export class OrdersController {
         return c.json(error('订单不存在'), 404);
       }
 
-      return c.json(success(order));
+      return c.json(success(this.service.sanitizeOrderForRole(order, c.get('user')?.role)));
     } catch (err: any) {
       logger.error('Ship order error:', err);
       return c.json(error(err.message), 400);
@@ -131,7 +132,7 @@ export class OrdersController {
         return c.json(error('订单不存在'), 404);
       }
 
-      return c.json(success(order));
+      return c.json(success(this.service.sanitizeOrderForRole(order, c.get('user')?.role)));
     } catch (err: any) {
       logger.error('Cancel order error:', err);
       return c.json(error(err.message), 400);
@@ -149,7 +150,7 @@ export class OrdersController {
         return c.json(error('订单不存在'), 404);
       }
 
-      return c.json(success(order));
+      return c.json(success(this.service.sanitizeOrderForRole(order, c.get('user')?.role)));
     } catch (err: any) {
       logger.error('Refund order error:', err);
       return c.json(error(err.message), 400);

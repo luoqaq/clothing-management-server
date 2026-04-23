@@ -13,9 +13,10 @@ export class DashboardService {
     this.productsService = new ProductsService(db);
   }
 
-  async getDashboardSummary(params?: { startDate?: string; endDate?: string }) {
+  async getDashboardSummary(params?: { startDate?: string; endDate?: string; includeProfit?: boolean }) {
     const start = toDbRangeStart(params?.startDate);
     const end = toDbRangeEnd(params?.endDate);
+    const includeProfit = Boolean(params?.includeProfit);
 
     const dateRangeCondition = and(
       sql`${schema.orders.createdAt} >= ${start}`,
@@ -55,21 +56,23 @@ export class DashboardService {
         })
         .from(schema.productSkus)
         .where(eq(schema.productSkus.status, 'active')),
-      this.db
-        .select({
-          price: schema.orderItems.price,
-          soldPrice: schema.orderItems.soldPrice,
-          costPriceSnapshot: schema.orderItems.costPriceSnapshot,
-          quantity: schema.orderItems.quantity,
-        })
-        .from(schema.orderItems)
-        .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
-        .where(
-          and(
-            dateRangeCondition,
-            ne(schema.orders.status, 'cancelled')
-          )
-        ),
+      includeProfit
+        ? this.db
+            .select({
+              price: schema.orderItems.price,
+              soldPrice: schema.orderItems.soldPrice,
+              costPriceSnapshot: schema.orderItems.costPriceSnapshot,
+              quantity: schema.orderItems.quantity,
+            })
+            .from(schema.orderItems)
+            .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
+            .where(
+              and(
+                dateRangeCondition,
+                ne(schema.orders.status, 'cancelled')
+              )
+            )
+        : Promise.resolve([]),
     ]);
 
     const lowStockCount = activeSkus.filter((item: any) => {
@@ -85,6 +88,7 @@ export class DashboardService {
         startDate: start,
         endDate: end,
       },
+      role: includeProfit ? 'admin' : 'sales',
     });
 
     const salesAmount = validOrders.reduce((sum: number, order: any) => sum + Number(order.finalAmount ?? 0), 0);
@@ -95,15 +99,16 @@ export class DashboardService {
       return sum + (revenue - cost);
     }, 0);
 
-    return {
+    const summary = {
       orderCount: allOrders.length,
       salesAmount,
-      grossProfit,
       cancelledCount: cancelledOrders.length,
       pendingOrderCount: 0,
       lowStockCount,
       totalProductCount: products.length,
       latestOrders: latestOrders.items,
     };
+
+    return includeProfit ? { ...summary, grossProfit } : summary;
   }
 }

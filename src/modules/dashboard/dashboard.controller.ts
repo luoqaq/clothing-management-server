@@ -3,6 +3,7 @@ import type { MySql2Database } from 'drizzle-orm/mysql2';
 import * as schema from '../../db/schema';
 import { logger } from '../../utils/logger';
 import { error, success } from '../../utils/response';
+import { isAdminRole } from '../../utils/role';
 import { DashboardService } from './dashboard.service';
 
 export class DashboardController {
@@ -18,6 +19,7 @@ export class DashboardController {
       const result = await this.service.getDashboardSummary({
         startDate,
         endDate,
+        includeProfit: isAdminRole(c.get('user')?.role),
       });
       return c.json(success(result));
     } catch (err: any) {

@@ -10,9 +10,10 @@ export function createCustomersRoutes(db: MySql2Database<typeof schema>) {
   const controller = new CustomersController(db);
 
   customers.use('*', authMiddleware);
+  customers.get('/age-buckets', (c) => controller.getAgeBuckets(c));
+
   customers.use('*', requireRoles(['admin']));
 
-  customers.get('/age-buckets', (c) => controller.getAgeBuckets(c));
   customers.post('/age-buckets', (c) => controller.createAgeBucket(c));
   customers.put('/age-buckets/:id', (c) => controller.updateAgeBucket(c));
   customers.delete('/age-buckets/:id', (c) => controller.deleteAgeBucket(c));

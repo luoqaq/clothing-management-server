@@ -3,6 +3,7 @@ import * as schema from '../../db/schema';
 import type { Order, OrderFilters, OrderItem, OrderSource, OrderStatus } from '../../types';
 import dayjs from 'dayjs';
 import { formatDateTime as formatDateTimeUtil, toDbRangeEnd, toDbRangeStart } from '../../utils/date';
+import { isAdminRole } from '../../utils/role';
 import { ProductsService } from '../products/products.service';
 
 type CreateOrderPayload = Omit<Order, 'id' | 'orderNo' | 'createdAt' | 'updatedAt' | 'items'> & {
@@ -141,7 +142,22 @@ export class OrdersService {
     await this.syncCustomerProfileByOrder(Number(order.id));
   }
 
-  private async buildOrder(orderRow: any, normalizeStatus = true): Promise<Order | null> {
+  sanitizeOrderForRole(order: Order, role?: string | null): Order {
+    if (isAdminRole(role)) {
+      return order;
+    }
+
+    return {
+      ...order,
+      items: order.items.map((item) => {
+        const safeItem = { ...item };
+        delete safeItem.costPriceSnapshot;
+        return safeItem;
+      }),
+    };
+  }
+
+  private async buildOrder(orderRow: any, normalizeStatus = true, includeCostSnapshot = true): Promise<Order | null> {
     if (!orderRow) {
       return null;
     }
@@ -182,7 +198,7 @@ export class OrdersService {
       image: item.image ?? null,
       price: Number(item.price ?? 0),
       soldPrice: item.soldPrice ? Number(item.soldPrice) : Number(item.price ?? 0),
-      costPriceSnapshot: Number(item.costPriceSnapshot ?? 0),
+      ...(includeCostSnapshot ? { costPriceSnapshot: Number(item.costPriceSnapshot ?? 0) } : {}),
       quantity: Number(item.quantity ?? 0),
       color: item.color ?? null,
       size: item.size ?? null,
@@ -221,6 +237,7 @@ export class OrdersService {
     page?: number;
     pageSize?: number;
     filters?: OrderFilters;
+    role?: string | null;
   }): Promise<{ items: Order[]; total: number }> {
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? 20;
@@ -344,7 +361,8 @@ export class OrdersService {
         .offset(offset);
     }
 
-    const items = (await Promise.all(rows.map((row: any) => this.buildOrder(row, true)))).filter(Boolean) as Order[];
+    const includeCostSnapshot = isAdminRole(params?.role);
+    const items = (await Promise.all(rows.map((row: any) => this.buildOrder(row, true, includeCostSnapshot)))).filter(Boolean) as Order[];
     
     const totalQuery = await this.db.select({ count: count() }).from(schema.orders).where(whereClause);
 
@@ -354,10 +372,11 @@ export class OrdersService {
     };
   }
 
-  async getOrder(id: number): Promise<Order | null> {
+  async getOrder(id: number, role?: string | null): Promise<Order | null> {
+    const includeCostSnapshot = isAdminRole(role);
     try {
       const rows = await this.db.select().from(schema.orders).where(eq(schema.orders.id, id));
-      return this.buildOrder(this.firstRow(rows), true);
+      return this.buildOrder(this.firstRow(rows), true, includeCostSnapshot);
     } catch (error) {
       if (!this.isSchemaCompatibilityError(error)) {
         throw error;
@@ -389,7 +408,7 @@ export class OrdersService {
         })
         .from(schema.orders)
         .where(eq(schema.orders.id, id));
-      return this.buildOrder(this.firstRow(rows), true);
+      return this.buildOrder(this.firstRow(rows), true, includeCostSnapshot);
     }
   }
 
@@ -580,7 +599,7 @@ export class OrdersService {
         await this.syncCustomerProfileByOrder(orderId, typeof data.ageBucketId === 'number' ? data.ageBucketId : null);
       }
 
-      const order = await this.getOrder(orderId);
+      const order = await this.getOrder(orderId, 'admin');
       if (!order) {
         throw new Error('创建订单失败');
       }
@@ -619,7 +638,7 @@ export class OrdersService {
     }
 
     await this.db.update(schema.orders).set({ status: 'confirmed' }).where(eq(schema.orders.id, id));
-    return this.getOrder(id);
+    return this.getOrder(id, 'admin');
   }
 
   async shipOrder(
@@ -664,7 +683,7 @@ export class OrdersService {
       await this.syncCustomerProfileByPhone(order.customerPhone);
     }
 
-    return this.getOrder(id);
+    return this.getOrder(id, 'admin');
   }
 
   async refundOrder(id: number, _data: { amount: number; reason: string }): Promise<Order | null> {
