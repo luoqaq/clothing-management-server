@@ -409,6 +409,75 @@ describe('OrdersService inventory transitions', () => {
     expect(dbMock.updates[0]?.values.cancelReason).toBe('客户取消');
   });
 
+  it('restores stock on the current matching sku when the order snapshot points to a deleted sku', async () => {
+    const dbMock = createOrderLifecycleDbMock(
+      {
+        id: 13,
+        orderNo: '202606010001',
+        source: 'staff_miniapp',
+        customerName: 'Carol',
+        customerPhone: '',
+        customerEmail: null,
+        totalAmount: '199.00',
+        discountAmount: '0.00',
+        finalAmount: '199.00',
+        status: 'confirmed',
+        address: {},
+        note: null,
+        paymentMethod: 'cash',
+        paymentStatus: 'paid',
+        shippingCompany: null,
+        trackingNumber: null,
+        cancelReason: null,
+        refundReason: null,
+        paidAt: new Date('2026-06-01T22:08:18'),
+        shippedAt: null,
+        deliveredAt: null,
+        createdAt: new Date('2026-06-01T22:08:18'),
+        updatedAt: new Date('2026-06-01T22:08:18'),
+      },
+      [
+        {
+          id: 3,
+          orderId: 13,
+          productId: 120,
+          skuId: 1437,
+          productName: 'XQ003',
+          skuCode: 'XQ003-F-波点-P120',
+          image: null,
+          price: '199.00',
+          soldPrice: '199.00',
+          costPriceSnapshot: '99.00',
+          quantity: 1,
+          color: '波点',
+          size: 'F',
+        },
+      ]
+    );
+    const service = new OrdersService(dbMock as any);
+    const restored: Array<{ skuId: number; quantity: number }> = [];
+
+    (service as any).productsService = {
+      restoreSpecificationStock: async (skuId: number, quantity: number) => {
+        restored.push({ skuId, quantity });
+        if (skuId === 1437) {
+          throw new Error('规格不存在');
+        }
+      },
+      releaseSpecificationStock: async () => undefined,
+      findSpecificationIdByOrderSnapshot: async (item: { productId: number; skuCode: string }) =>
+        item.productId === 120 && item.skuCode === 'XQ003-F-波点-P120' ? 1468 : null,
+    };
+
+    await service.cancelOrder(13, '成本价修正后重录');
+
+    expect(restored).toEqual([
+      { skuId: 1437, quantity: 1 },
+      { skuId: 1468, quantity: 1 },
+    ]);
+    expect(dbMock.updates[0]?.values.status).toBe('cancelled');
+  });
+
   it('normalizes legacy active states to confirmed and refund states to cancelled in responses', async () => {
     const orders = [
       {

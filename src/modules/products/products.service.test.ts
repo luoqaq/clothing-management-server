@@ -66,6 +66,7 @@ function createUpdateProductDbMock() {
   let productRow = { ...initialProductRow };
   let skuRows = [...initialSkuRows];
   let insertedSkuRows: any[] = [];
+  let deleteCalls = 0;
 
   const db = {
     select() {
@@ -108,7 +109,13 @@ function createUpdateProductDbMock() {
               ...row,
               ...values,
             }));
-            skuRows = insertedSkuRows;
+          }
+
+          if (table === schema.productSkus) {
+            skuRows = skuRows.map((row) => ({
+              ...row,
+              ...values,
+            }));
           }
 
           return {
@@ -121,6 +128,7 @@ function createUpdateProductDbMock() {
       return {
         where: async () => {
           if (table === schema.productSkus) {
+            deleteCalls += 1;
             skuRows = [];
           }
         },
@@ -145,7 +153,12 @@ function createUpdateProductDbMock() {
     },
   };
 
-  return { db, getInsertedSkuRows: () => insertedSkuRows };
+  return {
+    db,
+    getInsertedSkuRows: () => insertedSkuRows,
+    getSkuRows: () => skuRows,
+    getDeleteCalls: () => deleteCalls,
+  };
 }
 
 describe('ProductsService', () => {
@@ -192,7 +205,7 @@ describe('ProductsService', () => {
   });
 
   it('preserves cumulative inbound cost when updating specifications', async () => {
-    const { db, getInsertedSkuRows } = createUpdateProductDbMock();
+    const { db, getSkuRows } = createUpdateProductDbMock();
     const service = new ProductsService(db as any);
     service.getCategories = async () => [];
     service.getSuppliers = async () => [];
@@ -220,12 +233,12 @@ describe('ProductsService', () => {
       ],
     });
 
-    expect(getInsertedSkuRows()[0]?.cumulativeInboundQuantity).toBe(8);
-    expect(getInsertedSkuRows()[0]?.cumulativeCostAmount).toBe('400');
+    expect(getSkuRows()[0]?.cumulativeInboundQuantity).toBe(8);
+    expect(getSkuRows()[0]?.cumulativeCostAmount).toBe('400');
   });
 
   it('clears reserved stock when an existing specification is changed into a different color or size', async () => {
-    const { db, getInsertedSkuRows } = createUpdateProductDbMock();
+    const { db, getSkuRows } = createUpdateProductDbMock();
     const service = new ProductsService(db as any);
     service.getCategories = async () => [];
     service.getSuppliers = async () => [];
@@ -253,7 +266,41 @@ describe('ProductsService', () => {
       ],
     });
 
-    expect(getInsertedSkuRows()[0]?.reservedStock).toBe(0);
+    expect(getSkuRows()[0]?.reservedStock).toBe(0);
+  });
+
+  it('keeps an existing specification row when only cost price changes', async () => {
+    const { db, getSkuRows, getDeleteCalls } = createUpdateProductDbMock();
+    const service = new ProductsService(db as any);
+    service.getCategories = async () => [];
+    service.getSuppliers = async () => [];
+
+    await service.updateProduct(7, {
+      specifications: [
+        {
+          id: 12,
+          productId: 7,
+          skuCode: 'TOP001-M-白-P7',
+          barcode: 'SKU0000000012',
+          color: '白色',
+          size: 'M',
+          salePrice: 199,
+          costPrice: 60,
+          stock: 5,
+          reservedStock: 1,
+          availableStock: 4,
+          cumulativeInboundQuantity: 8,
+          cumulativeCostAmount: 400,
+          status: 'active',
+          createdAt: '',
+          updatedAt: '',
+        } as any,
+      ],
+    });
+
+    expect(getDeleteCalls()).toBe(0);
+    expect(getSkuRows()[0]?.id).toBe(12);
+    expect(getSkuRows()[0]?.costPrice).toBe('60');
   });
 
   it('blocks creating a product when the product code already exists', async () => {

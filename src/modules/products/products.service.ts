@@ -410,13 +410,11 @@ export class ProductsService {
     }
 
     const specificationsToPersist = data.specifications ?? existing.specifications;
-    const existingBarcodeMap = new Map(
-      existing.specifications.map((item) => [Number(item.id), item.barcode])
-    );
     const existingSpecificationMap = new Map(
       existing.specifications.map((item) => [
         Number(item.id),
         {
+          skuCode: item.skuCode,
           color: item.color,
           size: item.size,
           reservedStock: item.reservedStock,
@@ -427,42 +425,141 @@ export class ProductsService {
     );
 
     if (data.specifications || data.productCode !== undefined) {
-      await this.db.delete(schema.productSkus).where(eq(schema.productSkus.productId, id));
-      await this.db.insert(schema.productSkus).values(
-        specificationsToPersist.map((item, index) => ({
+      const existingUpdates: Array<{ id: number; values: Record<string, unknown>; skuCodeChanged: boolean }> = [];
+      const newSpecifications: Array<Record<string, unknown>> = [];
+      const persistedSpecificationIds = new Set<number>();
+
+      specificationsToPersist.forEach((item, index) => {
+        const itemId = Number(item.id ?? 0);
+        const existingSpecification = itemId ? existingSpecificationMap.get(itemId) : undefined;
+        const skuCode = this.buildSkuCode(id, nextProductCode, item.size, item.color);
+        const baseValues = {
           productId: id,
-          skuCode: this.buildSkuCode(id, nextProductCode, item.size, item.color),
-          barcode:
-            item.id && existingBarcodeMap.get(Number(item.id))
-              ? existingBarcodeMap.get(Number(item.id))!
-              : this.buildPendingBarcode(id, index),
+          skuCode,
           color: item.color,
           size: item.size,
           salePrice: String(item.salePrice),
           costPrice: String(item.costPrice),
           stock: item.stock,
           reservedStock:
-            item.id &&
-            existingSpecificationMap.get(Number(item.id))?.color === item.color &&
-            existingSpecificationMap.get(Number(item.id))?.size === item.size
-              ? Number(existingSpecificationMap.get(Number(item.id))?.reservedStock ?? 0)
+            existingSpecification &&
+            existingSpecification.color === item.color &&
+            existingSpecification.size === item.size
+              ? Number(existingSpecification.reservedStock ?? 0)
               : 0,
           cumulativeInboundQuantity:
-            item.id && existingSpecificationMap.get(Number(item.id))?.cumulativeInboundQuantity !== undefined
-              ? existingSpecificationMap.get(Number(item.id))?.cumulativeInboundQuantity
+            existingSpecification?.cumulativeInboundQuantity !== undefined
+              ? existingSpecification.cumulativeInboundQuantity
               : item.cumulativeInboundQuantity ?? item.stock,
           cumulativeCostAmount:
-            item.id && existingSpecificationMap.get(Number(item.id))?.cumulativeCostAmount !== undefined
-              ? String(existingSpecificationMap.get(Number(item.id))?.cumulativeCostAmount)
+            existingSpecification?.cumulativeCostAmount !== undefined
+              ? String(existingSpecification.cumulativeCostAmount)
               : String(item.cumulativeCostAmount ?? item.stock * item.costPrice),
           image: item.image ?? null,
           status: item.status ?? 'active',
-        }))
-      );
+        };
+
+        if (existingSpecification) {
+          persistedSpecificationIds.add(itemId);
+          existingUpdates.push({
+            id: itemId,
+            values: baseValues,
+            skuCodeChanged: existingSpecification.skuCode !== skuCode,
+          });
+          return;
+        }
+
+        newSpecifications.push({
+          ...baseValues,
+          barcode: this.buildPendingBarcode(id, index),
+        });
+      });
+
+      for (const item of existingUpdates.filter((item) => item.skuCodeChanged)) {
+        await this.db
+          .update(schema.productSkus)
+          .set({ skuCode: this.buildPendingBarcode(id, item.id) })
+          .where(eq(schema.productSkus.id, item.id));
+      }
+
+      const removedSpecificationIds = existing.specifications
+        .map((item) => Number(item.id))
+        .filter((itemId) => !persistedSpecificationIds.has(itemId));
+
+      if (removedSpecificationIds.length > 0) {
+        await this.db.delete(schema.productSkus).where(inArray(schema.productSkus.id, removedSpecificationIds));
+      }
+
+      for (const item of existingUpdates) {
+        await this.db
+          .update(schema.productSkus)
+          .set(item.values)
+          .where(eq(schema.productSkus.id, item.id));
+      }
+
+      if (newSpecifications.length > 0) {
+        await this.db.insert(schema.productSkus).values(newSpecifications);
+      }
+
       await this.assignGeneratedBarcodesByProductId(id);
     }
 
     return this.getProduct(id);
+  }
+
+  async findSpecificationIdByOrderSnapshot(item: {
+    skuId?: number | null;
+    productId?: number | null;
+    skuCode?: string | null;
+    color?: string | null;
+    size?: string | null;
+  }): Promise<number | null> {
+    const skuId = Number(item.skuId ?? 0);
+    if (skuId > 0) {
+      const rows = await this.db.select().from(schema.productSkus).where(eq(schema.productSkus.id, skuId));
+      const specification = this.firstRow(rows);
+      if (specification) {
+        return Number(specification.id);
+      }
+    }
+
+    const productId = Number(item.productId ?? 0);
+    if (!productId) {
+      return null;
+    }
+
+    const skuCode = String(item.skuCode ?? '').trim();
+    if (skuCode) {
+      const rows = await this.db
+        .select()
+        .from(schema.productSkus)
+        .where(and(eq(schema.productSkus.productId, productId), eq(schema.productSkus.skuCode, skuCode)));
+      const specification = this.firstRow(rows);
+      if (specification) {
+        return Number(specification.id);
+      }
+    }
+
+    const color = String(item.color ?? '').trim();
+    const size = String(item.size ?? '').trim();
+    if (color && size) {
+      const rows = await this.db
+        .select()
+        .from(schema.productSkus)
+        .where(
+          and(
+            eq(schema.productSkus.productId, productId),
+            eq(schema.productSkus.color, color),
+            eq(schema.productSkus.size, size)
+          )
+        );
+      const specification = this.firstRow(rows);
+      if (specification) {
+        return Number(specification.id);
+      }
+    }
+
+    return null;
   }
 
   async getProductLabels(productId: number): Promise<ProductLabelItem[] | null> {

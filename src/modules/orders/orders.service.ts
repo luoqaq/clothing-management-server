@@ -4,6 +4,7 @@ import type { Order, OrderFilters, OrderItem, OrderSource, OrderStatus } from '.
 import dayjs from 'dayjs';
 import { formatDateTime as formatDateTimeUtil, toDbRangeEnd, toDbRangeStart } from '../../utils/date';
 import { isAdminRole } from '../../utils/role';
+import { logger } from '../../utils/logger';
 import { ProductsService } from '../products/products.service';
 
 type CreateOrderPayload = Omit<Order, 'id' | 'orderNo' | 'createdAt' | 'updatedAt' | 'items'> & {
@@ -37,6 +38,52 @@ export class OrdersService {
       message.includes('cost_price_snapshot') ||
       message.includes('sold_price') ||
       message.includes('customers')
+    );
+  }
+
+  private isMissingSpecificationError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes('规格不存在');
+  }
+
+  private async reverseOrderItemStock(
+    item: OrderItem,
+    action: 'restore' | 'release'
+  ): Promise<void> {
+    const applyStockChange = async (skuId: number) => {
+      if (action === 'restore') {
+        await this.productsService.restoreSpecificationStock(skuId, item.quantity);
+        return;
+      }
+
+      await this.productsService.releaseSpecificationStock(skuId, item.quantity);
+    };
+
+    try {
+      await applyStockChange(item.skuId);
+      return;
+    } catch (error) {
+      if (!this.isMissingSpecificationError(error)) {
+        throw error;
+      }
+    }
+
+    const fallbackSkuId = await this.productsService.findSpecificationIdByOrderSnapshot(item);
+    if (fallbackSkuId) {
+      await applyStockChange(fallbackSkuId);
+      return;
+    }
+
+    logger.warn(
+      {
+        orderItemId: item.id,
+        productId: item.productId,
+        skuId: item.skuId,
+        skuCode: item.skuCode,
+        color: item.color,
+        size: item.size,
+      },
+      '取消订单时未找到可回补的商品规格，已跳过库存回补'
     );
   }
 
@@ -665,9 +712,9 @@ export class OrdersService {
 
     for (const item of order.items) {
       if (order.status === 'confirmed') {
-        await this.productsService.restoreSpecificationStock(item.skuId, item.quantity);
+        await this.reverseOrderItemStock(item, 'restore');
       } else {
-        await this.productsService.releaseSpecificationStock(item.skuId, item.quantity);
+        await this.reverseOrderItemStock(item, 'release');
       }
     }
 

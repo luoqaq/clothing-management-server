@@ -1,6 +1,6 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-04-23
+最近更新：2026-06-01
 
 ## 仓库与环境
 - 路径：`/Users/luo/Project/clothing-management-server`
@@ -89,6 +89,19 @@
 - 线上状态、提交号、服务启动时间这类信息不保存在长期记忆里；涉及上线状态时重新巡检，不依赖历史快照。
 
 ## 最近新增经验
+
+### 会话日期：2026-06-01
+- 变更内容：
+  - 修复“录单后因商品成本价录错去编辑商品，再取消订单时报规格不存在”的后端根因。
+  - 商品编辑不再因为提交 `specifications` 就整组删除并重建 SKU；已有规格按 `id` 原地更新，仅新增规格插入、移除规格删除，避免只改成本价时改变 `product_skus.id`。
+  - 取消订单回补库存时，如果历史订单明细里的旧 `skuId` 已不存在，会按订单快照中的 `productId + skuCode`、再按 `productId + color + size` 尝试匹配当前 SKU 并回补；仍无法匹配时允许取消并记录 warning。
+- 验证结果：
+  - `bun test src/modules/products/products.service.test.ts src/modules/orders/orders.service.test.ts` 通过。
+  - `npm test` 通过。
+  - `npm run build` 通过。
+- 遗留问题或风险：
+  - 本次未执行生产发布；线上已有历史脏关联仍需发布后用取消订单接口或只读 SQL 复核。
+  - 如果用户删除某个规格且该规格没有当前颜色尺码可匹配，历史订单取消时会跳过该明细的库存回补并写 warning，需要按现场订单人工核库存。
 
 ### 会话日期：2026-04-23
 - 变更内容：
