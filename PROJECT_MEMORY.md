@@ -64,7 +64,7 @@
 - 生产机构建/重启链路存在环境差异时，优先走仓库内标准脚本和现有 skills，不要手工拼命令上线。
 
 ## 上线版本记录
-- 当前最新发布版本：`release-20260423.1`
+- 当前最新发布版本：`release-20260601.1`
 - 版本递增规则：每次上线前读取本节，按 `release-YYYYMMDD.N` 递增；同一天多次上线递增 `.N`。
 - 上线前说明必须包含：本次版本号、后端 commit、发布范围、是否包含数据库结构变更或数据修复。
 - 数据库相关上线说明必须包含：`drizzle/*.sql` 状态、生产库结构核对结果、手动 SQL 执行计划、验证 SQL/API、失败后的补救方式。
@@ -99,8 +99,13 @@
   - `bun test src/modules/products/products.service.test.ts src/modules/orders/orders.service.test.ts` 通过。
   - `npm test` 通过。
   - `npm run build` 通过。
+  - 已推送 `main`：修复代码 commit 为 `6dc5a26`。
+  - 已于 2026-06-01 22:41 CST 通过 `/var/clothing/server/deploy/release.sh server` 发布 `release-20260601.1`。
+  - 生产后端当前 commit 为 `6dc5a26`，`clothing-management-server` 为 `active`，本机 `/health` 返回成功。
+  - 生产反代验证通过：`https://clothing.chuchu9.cn/api/auth/me` 未登录返回 `401`，`https://clothing.chuchu9.cn/` 返回 `200`。
 - 遗留问题或风险：
-  - 本次未执行生产发布；线上已有历史脏关联仍需发布后用取消订单接口或只读 SQL 复核。
+  - 本次不包含数据库结构变更，不涉及 `drizzle/*.sql` 或手动 SQL。
+  - 线上已有历史脏关联已由取消订单 fallback 兼容；仍建议遇到无法匹配当前规格的 warning 时按现场订单人工核库存。
   - 如果用户删除某个规格且该规格没有当前颜色尺码可匹配，历史订单取消时会跳过该明细的库存回补并写 warning，需要按现场订单人工核库存。
 
 ### 会话日期：2026-04-23
