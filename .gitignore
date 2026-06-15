@@ -34,7 +34,6 @@ dist-ssr
 # Database
 *.db
 *.sqlite
-drizzle
 
 # Build
 *.tsbuildinfo

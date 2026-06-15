@@ -280,6 +280,27 @@ export class OrdersService {
     };
   }
 
+  private async findOrderIdsByItemKeyword(keyword?: string): Promise<number[]> {
+    const value = String(keyword ?? '').trim();
+    if (!value) {
+      return [];
+    }
+
+    const itemRows = await this.db
+      .select({ orderId: schema.orderItems.orderId })
+      .from(schema.orderItems)
+      .where(
+        or(
+          like(schema.orderItems.productName, `%${value}%`),
+          like(schema.orderItems.skuCode, `%${value}%`),
+          like(schema.orderItems.color, `%${value}%`),
+          like(schema.orderItems.size, `%${value}%`)
+        )
+      );
+
+    return Array.from(new Set(itemRows.map((row: any) => Number(row.orderId)).filter(Boolean)));
+  }
+
   async getOrders(params?: {
     page?: number;
     pageSize?: number;
@@ -288,7 +309,7 @@ export class OrdersService {
   }): Promise<{ items: Order[]; total: number }> {
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? 20;
-    const { search, status, paymentStatus, source, startDate, endDate, sortBy, sortOrder } = params?.filters || {};
+    const { search, productSearch, status, paymentStatus, source, startDate, endDate, sortBy, sortOrder } = params?.filters || {};
     const offset = (page - 1) * pageSize;
     const isCreatedAtAsc = sortBy === 'createdAt' && sortOrder === 'asc';
     const orderByClause = isCreatedAtAsc
@@ -300,16 +321,7 @@ export class OrdersService {
     if (search) {
       let matchedOrderIds: number[] = [];
       try {
-        const itemRows = await this.db
-          .select({ orderId: schema.orderItems.orderId })
-          .from(schema.orderItems)
-          .where(
-            or(
-              like(schema.orderItems.productName, `%${search}%`),
-              like(schema.orderItems.skuCode, `%${search}%`)
-            )
-          );
-        matchedOrderIds = itemRows.map((r: any) => Number(r.orderId));
+        matchedOrderIds = await this.findOrderIdsByItemKeyword(search);
       } catch {
         // Best-effort: ignore schema compatibility errors
       }
@@ -325,6 +337,17 @@ export class OrdersService {
       }
 
       whereConditions.push(or(...searchConditions));
+    }
+
+    if (productSearch) {
+      let matchedOrderIds: number[] = [];
+      try {
+        matchedOrderIds = await this.findOrderIdsByItemKeyword(productSearch);
+      } catch {
+        matchedOrderIds = [];
+      }
+
+      whereConditions.push(matchedOrderIds.length > 0 ? inArray(schema.orders.id, matchedOrderIds) : sql`1 = 0`);
     }
 
     if (status === 'confirmed') {
@@ -523,6 +546,14 @@ export class OrdersService {
           const product = this.firstRow(productRows);
           if (!product) {
             throw new Error('商品不存在');
+          }
+
+          if (product.status !== 'active') {
+            throw new Error(`商品 ${product.name} 已下架，暂不可销售`);
+          }
+
+          if (sku.status !== 'active') {
+            throw new Error(`规格 ${sku.color}/${sku.size} 已停用，暂不可销售`);
           }
 
           await this.productsService.deductSpecificationStock(Number(sku.id), item.quantity);

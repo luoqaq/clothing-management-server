@@ -21,8 +21,15 @@ export function createMobileRoutes(db: MySql2Database<typeof schema>) {
   mobile.get('/products/:id', (c) => controller.getProduct(c));
   mobile.get('/product-options', (c) => controller.getProductOptions(c));
   mobile.get('/customers/age-buckets', (c) => controller.getAgeBuckets(c));
+  mobile.get('/dashboard/summary', (c) => controller.getDashboardSummary(c));
   mobile.post('/products', requireRoles(['admin']), (c) => controller.createProduct(c));
+  mobile.put('/products/:id', requireRoles(['admin']), (c) => controller.updateProduct(c));
   mobile.patch('/products/:id/images', requireRoles(['admin']), (c) => controller.updateProductImages(c));
+  mobile.patch('/products/specifications/:id/stock', requireRoles(['admin']), (c) => controller.updateSpecificationStock(c));
+  mobile.post('/products/import/parse-excel', requireRoles(['admin']), (c) => controller.parseExcelImport(c));
+  mobile.post('/products/import/parse-excel-file', requireRoles(['admin']), (c) => controller.parseExcelImportFile(c));
+  mobile.post('/products/import/parse-image', requireRoles(['admin']), (c) => controller.parseImageImport(c));
+  mobile.post('/products/import/bulk-create', requireRoles(['admin']), (c) => controller.bulkCreateProducts(c));
   mobile.get('/orders', (c) => controller.getOrders(c));
   mobile.get('/orders/:id', (c) => controller.getOrder(c));
   mobile.post('/orders', (c) => controller.createOrder(c));

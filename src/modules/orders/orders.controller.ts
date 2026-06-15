@@ -24,13 +24,14 @@ export class OrdersController {
     try {
       const query = c.req.query();
       const validQuery = orderFiltersSchema.parse(query);
-      const { search, status, paymentStatus, source, startDate, endDate, sortBy, sortOrder, page, pageSize } = validQuery;
+      const { search, productSearch, status, paymentStatus, source, startDate, endDate, sortBy, sortOrder, page, pageSize } = validQuery;
 
       const result = await this.service.getOrders({
         page: page ? parseInt(page, 10) : 1,
         pageSize: pageSize ? parseInt(pageSize, 10) : 20,
         filters: {
           search,
+          productSearch,
           status: status as any,
           paymentStatus,
           source: source as any,

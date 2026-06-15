@@ -167,6 +167,8 @@ export interface ProductFilters {
   status?: string;
   minPrice?: number;
   maxPrice?: number;
+  lowStock?: boolean;
+  lowStockThreshold?: number;
 }
 
 export type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
@@ -228,6 +230,7 @@ export interface Order {
 
 export interface OrderFilters {
   search?: string;
+  productSearch?: string;
   status?: OrderStatus;
   paymentStatus?: string;
   source?: OrderSource;

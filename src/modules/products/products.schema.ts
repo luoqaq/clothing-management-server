@@ -61,6 +61,8 @@ export const productFiltersSchema = z.object({
   status: z.string().optional(),
   minPrice: z.string().optional(),
   maxPrice: z.string().optional(),
+  lowStock: z.string().optional(),
+  lowStockThreshold: z.string().optional(),
   page: z.string().optional(),
   pageSize: z.string().optional(),
 });

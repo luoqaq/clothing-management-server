@@ -26,6 +26,8 @@
    - 改了什么
    - 如何验证
    - 剩余风险或待办
+6. 涉及上线时，上线前必须先从 `PROJECT_MEMORY.md` 读取最近发布版本，按 `release-YYYYMMDD.N` 递增生成本次版本号，并在上线说明中列出后端 commit、发布范围、数据库变更状态。
+7. 上线完成后必须把实际发布版本、后端 commit、迁移状态、验证结果和遗留风险写入 `PROJECT_MEMORY.md`。
 
 ## 变更边界
 - 仅修改与当前用户需求直接相关的文件。
@@ -62,3 +64,8 @@
 
 ## 项目特有约束
 - 涉及数据库结构、`drizzle/*.sql`、生产发布或线上排障时，优先走仓库现有脚本和标准 skills，不要手工跳步骤。
+- 涉及数据库改动或疑似数据库结构依赖时，上线前必须明确说明是否包含 SQL migration、是否需要手动执行 SQL、执行顺序、验证 SQL/API、失败后的补救方式。
+- 后端上线前必须检查 `drizzle/*.sql`、`drizzle/meta/*`、`src/db/schema/*` 与生产库结构是否一致；不能只依赖普通发布脚本的 `git diff` 判断。
+- 如果发现 migration 文件未被 Git 跟踪、被 `.gitignore` 忽略或未出现在生产工作区，必须先修正或明确记录风险，再执行数据库变更或发布。
+- 当前仓库禁止直接使用 `drizzle-kit generate` 或 `drizzle-kit migrate` 作为上线流程；`drizzle/meta/0000_snapshot.json` 是历史补齐快照，不是当前 schema 基线。确需新增 migration 时，先人工核对当前 schema，再走显式 SQL migration 流程。
+- `drizzle/0000_spicy_guardian.sql` 是历史补齐文件，含破坏性 SQL。若生产 `__drizzle_migrations` 未登记该 hash，只能在确认现有结构后登记 hash，绝不能执行该 SQL。

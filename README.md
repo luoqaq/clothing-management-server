@@ -55,28 +55,26 @@ CORS_ORIGIN=http://localhost:5173
 确保 MySQL 数据库已创建，然后执行：
 
 ```bash
-# 推送 schema 到数据库
-bun run db:push
-
-# 本地开发可使用 migrate（如果有迁移文件）
-bun run db:migrate
-
 # 初始化种子数据
 bun run db:seed
 ```
 
-生产环境不建议直接依赖 `bun run db:migrate`。当前仓库标准做法是：
+当前仓库禁止把 `drizzle-kit generate` / `drizzle-kit migrate` 作为上线流程。`drizzle/meta/0000_snapshot.json` 是历史补齐快照，不是当前 schema 基线；数据库变更必须走显式 SQL migration：
 
-1. 继续使用 `bun run db:generate` 生成 `drizzle/*.sql`
-2. 在测试库先验证 SQL
-3. 在线上显式执行 SQL 文件
-4. 执行后补写 `__drizzle_migrations`
+1. 人工核对当前 schema 与生产结构
+2. 编写或确认 `drizzle/*.sql`
+3. 在测试库先验证 SQL
+4. 在线上显式执行 SQL 文件
+5. 执行后补写 `__drizzle_migrations`
 
 推荐使用仓库脚本：
 
 ```bash
 # 查看哪些 SQL 还没记录到 __drizzle_migrations
 npm run db:check-sql
+
+# 只演练指定 SQL 是否会被执行，不写库、不补 migration 记录
+npm run db:apply-sql -- --dry-run drizzle/0005_customer_statistics.sql
 
 # 显式执行指定 migration SQL，并自动补 migration 记录
 npm run db:apply-sql -- drizzle/0005_customer_statistics.sql
@@ -159,10 +157,12 @@ clothing-management-server/
 | POST | `/products/categories` | 创建分类 | 是 |
 | PUT | `/products/categories/:id` | 更新分类 | 是 |
 | DELETE | `/products/categories/:id` | 删除分类 | 是 |
-| GET | `/products/brands` | 获取品牌列表 | 是 |
-| POST | `/products/brands` | 创建品牌 | 是 |
-| PUT | `/products/brands/:id` | 更新品牌 | 是 |
-| DELETE | `/products/brands/:id` | 删除品牌 | 是 |
+| GET | `/products/suppliers` | 获取供应商列表 | 是 |
+| POST | `/products/suppliers` | 创建供应商 | 是 |
+| PUT | `/products/suppliers/:id` | 更新供应商 | 是 |
+| DELETE | `/products/suppliers/:id` | 删除供应商 | 是 |
+| GET | `/products/:id/labels` | 获取商品标签打印数据 | 是 |
+| GET | `/products/check-code` | 校验商品款号是否存在 | 是 |
 
 ### 订单接口
 
@@ -176,6 +176,32 @@ clothing-management-server/
 | POST | `/orders/:id/cancel` | 取消订单 | 是 |
 | POST | `/orders/:id/refund` | 退款 | 是 |
 | GET | `/orders/export` | 导出订单 | 是 |
+
+### 移动端接口
+
+小程序业务接口统一位于 `/api/mobile`，复用同一套账号、商品、库存、订单和 COS 上传能力。
+
+| 方法 | 路径 | 说明 | 认证 |
+|------|------|------|------|
+| POST | `/mobile/auth/login` | 小程序登录 | 否 |
+| GET | `/mobile/auth/me` | 获取当前用户 | 是 |
+| GET | `/mobile/dashboard/summary` | 工作台摘要 | 是 |
+| GET | `/mobile/products` | 商品列表，支持低库存筛选 | 是 |
+| GET | `/mobile/products/:id` | 商品详情 | 是 |
+| GET | `/mobile/products/by-code` | 按 SKU 标签码读取可售规格 | 是 |
+| GET | `/mobile/product-options` | 商品分类、供应商、状态选项 | 是 |
+| POST | `/mobile/products` | 管理员新增商品 | 是 |
+| PUT | `/mobile/products/:id` | 管理员编辑商品 | 是 |
+| PATCH | `/mobile/products/:id/images` | 管理员维护商品图片 | 是 |
+| PATCH | `/mobile/products/specifications/:id/stock` | 管理员维护规格库存 | 是 |
+| POST | `/mobile/products/import/parse-excel-file` | 批量上新 Excel 文件解析 | 是 |
+| POST | `/mobile/products/import/parse-image` | 批量上新货单截图解析 | 是 |
+| POST | `/mobile/products/import/bulk-create` | 批量创建商品 | 是 |
+| GET | `/mobile/customers/age-buckets` | 获取客户年龄段 | 是 |
+| GET | `/mobile/orders` | 订单列表，支持时间与商品筛选 | 是 |
+| GET | `/mobile/orders/:id` | 订单详情 | 是 |
+| POST | `/mobile/orders` | 小程序录单 | 是 |
+| POST | `/mobile/orders/:id/cancel` | 取消订单 | 是 |
 
 ### 统计接口
 
@@ -199,17 +225,14 @@ clothing-management-server/
 ### 数据库操作
 
 ```bash
-# 推送 schema 到数据库（覆盖现有）
-bun run db:push
-
-# 生成迁移文件
-bun run db:generate
-
-# 本地开发运行迁移
-bun run db:migrate
+# 不要直接运行 drizzle-kit generate/migrate 作为上线流程
+# 历史 0000 snapshot 不可作为当前 schema 基线
 
 # 检查待执行 SQL 迁移
 npm run db:check-sql
+
+# 演练指定 SQL 迁移，不写库
+npm run db:apply-sql -- --dry-run drizzle/0005_customer_statistics.sql
 
 # 显式执行指定 SQL 迁移并补 __drizzle_migrations
 npm run db:apply-sql -- drizzle/0005_customer_statistics.sql
@@ -224,10 +247,13 @@ bun run db:seed
 
 - `users` - 用户信息
 - `product_categories` - 商品分类
-- `product_brands` - 商品品牌
+- `suppliers` - 商品供应商
 - `products` - 商品信息
+- `product_skus` - 商品规格、库存、成本、标签码和规格图
+- `customers` - 客户档案
+- `customer_age_buckets` - 客户年龄段配置
 - `orders` - 订单信息
-- `order_items` - 订单项
+- `order_items` - 订单项，包含成交价和成本快照
 
 ## 开发命令
 

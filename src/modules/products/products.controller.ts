@@ -28,7 +28,19 @@ export class ProductsController {
     try {
       const query = c.req.query();
       const validQuery = productFiltersSchema.parse(query);
-      const { search, categoryId, supplierId, status, minPrice, maxPrice, page, pageSize } = validQuery;
+      const {
+        search,
+        categoryId,
+        supplierId,
+        status,
+        minPrice,
+        maxPrice,
+        lowStock,
+        lowStockThreshold,
+        page,
+        pageSize,
+      } = validQuery;
+      const lowStockEnabled = lowStock === 'true' || lowStock === '1';
 
       const result = await this.service.getProducts({
         page: page ? parseInt(page, 10) : 1,
@@ -41,6 +53,8 @@ export class ProductsController {
           status,
           minPrice: minPrice ? parseFloat(minPrice) : undefined,
           maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
+          lowStock: lowStockEnabled || undefined,
+          lowStockThreshold: lowStockThreshold ? parseInt(lowStockThreshold, 10) : undefined,
         },
       });
 

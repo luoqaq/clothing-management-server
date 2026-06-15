@@ -2,18 +2,21 @@ import { eq } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { AuthService } from '../auth/auth.service';
 import { CustomersService } from '../customers/customers.service';
+import { DashboardService } from '../dashboard/dashboard.service';
 import { OrdersService } from '../orders/orders.service';
 import { ProductsService } from '../products/products.service';
 
 export class MobileService {
   private authService: AuthService;
   private customersService: CustomersService;
+  private dashboardService: DashboardService;
   private productsService: ProductsService;
   private ordersService: OrdersService;
 
   constructor(private db: any) {
     this.authService = new AuthService(db);
     this.customersService = new CustomersService(db);
+    this.dashboardService = new DashboardService(db);
     this.productsService = new ProductsService(db);
     this.ordersService = new OrdersService(db);
   }
@@ -28,6 +31,10 @@ export class MobileService {
 
   getCustomersService() {
     return this.customersService;
+  }
+
+  getDashboardService() {
+    return this.dashboardService;
   }
 
   getOrdersService() {

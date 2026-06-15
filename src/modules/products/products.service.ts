@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, like, ne, or } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, like, ne, or, sql } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type {
   Product,
@@ -219,7 +219,16 @@ export class ProductsService {
   }): Promise<{ items: Product[]; total: number }> {
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? 20;
-    const { search, categoryId, supplierId, status, minPrice, maxPrice } = params?.filters || {};
+    const {
+      search,
+      categoryId,
+      supplierId,
+      status,
+      minPrice,
+      maxPrice,
+      lowStock,
+      lowStockThreshold = 10,
+    } = params?.filters || {};
     const role = params?.role;
     const offset = (page - 1) * pageSize;
 
@@ -255,6 +264,33 @@ export class ProductsService {
 
     if (status) {
       whereConditions.push(eq(schema.products.status as any, status as any));
+    }
+
+    if (lowStock) {
+      const threshold = Number.isFinite(Number(lowStockThreshold))
+        ? Math.max(0, Number(lowStockThreshold))
+        : 10;
+      const lowStockSkuRows = await this.db
+        .select({ productId: schema.productSkus.productId })
+        .from(schema.productSkus)
+        .where(
+          and(
+            eq(schema.productSkus.status as any, 'active' as any),
+            sql`GREATEST(${schema.productSkus.stock} - ${schema.productSkus.reservedStock}, 0) <= ${threshold}`
+          )
+        );
+      const lowStockProductIds = Array.from(
+        new Set(lowStockSkuRows.map((item: any) => Number(item.productId)).filter(Boolean))
+      );
+
+      if (lowStockProductIds.length === 0) {
+        return {
+          items: [],
+          total: 0,
+        };
+      }
+
+      whereConditions.push(inArray(schema.products.id, lowStockProductIds));
     }
 
     const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
@@ -358,7 +394,7 @@ export class ProductsService {
 
     await this.assignGeneratedBarcodesByProductId(insertedId);
 
-    const product = await this.getProduct(insertedId);
+    const product = await this.getProduct(insertedId, 'admin');
     if (!product) {
       throw new Error('创建商品失败');
     }
@@ -384,7 +420,7 @@ export class ProductsService {
   }
 
   async updateProduct(id: number, data: Partial<ProductPayload>): Promise<Product | null> {
-    const existing = await this.getProduct(id);
+    const existing = await this.getProduct(id, 'admin');
     if (!existing) {
       return null;
     }
@@ -405,8 +441,8 @@ export class ProductsService {
     if (data.tags !== undefined) productUpdates.tags = data.tags;
     if (data.status !== undefined) productUpdates.status = data.status;
 
-    if (Object.keys(productUpdates).length > 0) {
-      await this.db.update(schema.products).set(productUpdates).where(eq(schema.products.id, id));
+    if (data.specifications !== undefined && data.specifications.length === 0) {
+      throw new Error('商品至少需要保留一个规格');
     }
 
     const specificationsToPersist = data.specifications ?? existing.specifications;
@@ -417,6 +453,7 @@ export class ProductsService {
           skuCode: item.skuCode,
           color: item.color,
           size: item.size,
+          image: item.image,
           reservedStock: item.reservedStock,
           cumulativeInboundQuantity: item.cumulativeInboundQuantity,
           cumulativeCostAmount: item.cumulativeCostAmount,
@@ -424,14 +461,30 @@ export class ProductsService {
       ])
     );
 
+    let existingUpdates: Array<{ id: number; values: Record<string, unknown>; skuCodeChanged: boolean }> = [];
+    let newSpecifications: Array<Record<string, unknown>> = [];
+    let removedSpecificationIds: number[] = [];
     if (data.specifications || data.productCode !== undefined) {
-      const existingUpdates: Array<{ id: number; values: Record<string, unknown>; skuCodeChanged: boolean }> = [];
-      const newSpecifications: Array<Record<string, unknown>> = [];
       const persistedSpecificationIds = new Set<number>();
 
       specificationsToPersist.forEach((item, index) => {
         const itemId = Number(item.id ?? 0);
         const existingSpecification = itemId ? existingSpecificationMap.get(itemId) : undefined;
+        const existingReservedStock = Number(existingSpecification?.reservedStock ?? 0);
+        const isSameSpecification =
+          existingSpecification &&
+          existingSpecification.color === item.color &&
+          existingSpecification.size === item.size;
+
+        if (existingSpecification && !isSameSpecification && existingReservedStock > 0) {
+          throw new Error(`规格 ${existingSpecification.color}/${existingSpecification.size} 已占用 ${existingReservedStock}，不能修改颜色或尺码`);
+        }
+
+        const reservedStock = isSameSpecification ? existingReservedStock : 0;
+        if (item.stock < reservedStock) {
+          throw new Error(`规格 ${item.color}/${item.size} 总库存不能低于已占用 ${reservedStock}`);
+        }
+
         const skuCode = this.buildSkuCode(id, nextProductCode, item.size, item.color);
         const baseValues = {
           productId: id,
@@ -441,12 +494,7 @@ export class ProductsService {
           salePrice: String(item.salePrice),
           costPrice: String(item.costPrice),
           stock: item.stock,
-          reservedStock:
-            existingSpecification &&
-            existingSpecification.color === item.color &&
-            existingSpecification.size === item.size
-              ? Number(existingSpecification.reservedStock ?? 0)
-              : 0,
+          reservedStock,
           cumulativeInboundQuantity:
             existingSpecification?.cumulativeInboundQuantity !== undefined
               ? existingSpecification.cumulativeInboundQuantity
@@ -455,7 +503,12 @@ export class ProductsService {
             existingSpecification?.cumulativeCostAmount !== undefined
               ? String(existingSpecification.cumulativeCostAmount)
               : String(item.cumulativeCostAmount ?? item.stock * item.costPrice),
-          image: item.image ?? null,
+          image:
+            item.image !== undefined
+              ? item.image ?? null
+              : item.id
+                ? existingSpecificationMap.get(Number(item.id))?.image ?? null
+                : null,
           status: item.status ?? 'active',
         };
 
@@ -475,16 +528,29 @@ export class ProductsService {
         });
       });
 
+      removedSpecificationIds = existing.specifications
+        .map((item) => Number(item.id))
+        .filter((itemId) => !persistedSpecificationIds.has(itemId));
+
+      const protectedDeletedSpecification = existing.specifications.find(
+        (item) => removedSpecificationIds.includes(Number(item.id)) && Number(item.reservedStock ?? 0) > 0
+      );
+      if (protectedDeletedSpecification) {
+        throw new Error(`规格 ${protectedDeletedSpecification.color}/${protectedDeletedSpecification.size} 已占用 ${protectedDeletedSpecification.reservedStock}，不能删除`);
+      }
+    }
+
+    if (Object.keys(productUpdates).length > 0) {
+      await this.db.update(schema.products).set(productUpdates).where(eq(schema.products.id, id));
+    }
+
+    if (data.specifications || data.productCode !== undefined) {
       for (const item of existingUpdates.filter((item) => item.skuCodeChanged)) {
         await this.db
           .update(schema.productSkus)
           .set({ skuCode: this.buildPendingBarcode(id, item.id) })
           .where(eq(schema.productSkus.id, item.id));
       }
-
-      const removedSpecificationIds = existing.specifications
-        .map((item) => Number(item.id))
-        .filter((itemId) => !persistedSpecificationIds.has(itemId));
 
       if (removedSpecificationIds.length > 0) {
         await this.db.delete(schema.productSkus).where(inArray(schema.productSkus.id, removedSpecificationIds));
@@ -504,7 +570,7 @@ export class ProductsService {
       await this.assignGeneratedBarcodesByProductId(id);
     }
 
-    return this.getProduct(id);
+    return this.getProduct(id, 'admin');
   }
 
   async findSpecificationIdByOrderSnapshot(item: {
@@ -632,7 +698,7 @@ export class ProductsService {
   }
 
   async deleteProduct(id: number): Promise<boolean> {
-    const existing = await this.getProduct(id);
+    const existing = await this.getProduct(id, 'admin');
     if (!existing) {
       return false;
     }
@@ -664,7 +730,7 @@ export class ProductsService {
       })
       .where(eq(schema.productSkus.id, specificationId));
 
-    return this.getProduct(Number(specification.productId));
+    return this.getProduct(Number(specification.productId), 'admin');
   }
 
   async reserveSpecificationStock(specificationId: number, quantity: number): Promise<void> {

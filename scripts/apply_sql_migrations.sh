@@ -9,18 +9,39 @@ usage() {
   cat <<'EOF'
 Usage:
   scripts/apply_sql_migrations.sh drizzle/0005_customer_statistics.sql [more files...]
+  scripts/apply_sql_migrations.sh --dry-run drizzle/0005_customer_statistics.sql [more files...]
 
 Behavior:
   - Loads DB_* from .env
   - Applies each SQL file explicitly with mysql
   - Inserts the SQL file sha256 into __drizzle_migrations after success
   - Skips files already recorded in __drizzle_migrations
+  - With --dry-run, only reports what would be applied
 EOF
 }
 
 if [ "${1:-}" = "--help" ] || [ $# -eq 0 ]; then
   usage
   exit 0
+fi
+
+if command -v node >/dev/null 2>&1; then
+  exec node "${ROOT_DIR}/scripts/apply_sql_migrations.mjs" "$@"
+fi
+
+dry_run=0
+filtered_args=()
+for arg in "$@"; do
+  if [ "${arg}" = "--dry-run" ]; then
+    dry_run=1
+    continue
+  fi
+  filtered_args+=("${arg}")
+done
+
+if [ "${#filtered_args[@]}" -eq 0 ]; then
+  usage
+  exit 1
 fi
 
 if [ ! -f "${ENV_FILE}" ]; then
@@ -59,7 +80,7 @@ mysql_exec() {
     "$@"
 }
 
-for input_path in "$@"; do
+for input_path in "${filtered_args[@]}"; do
   if [[ "${input_path}" = /* ]]; then
     migration_file="${input_path}"
   else
@@ -79,6 +100,16 @@ for input_path in "$@"; do
 
   if [ "${existing_count}" != "0" ]; then
     echo "Skipping already recorded migration: ${migration_name}"
+    continue
+  fi
+
+  if [ "${migration_name}" = "drizzle/0000_spicy_guardian.sql" ]; then
+    echo "Refusing to execute ${migration_name}: historical backfill migration contains destructive SQL. Verify production __drizzle_migrations and register the hash only." >&2
+    exit 1
+  fi
+
+  if [ "${dry_run}" -eq 1 ]; then
+    echo "WOULD APPLY ${migration_name}"
     continue
   fi
 

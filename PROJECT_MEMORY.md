@@ -1,6 +1,6 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-06-01
+最近更新：2026-06-15
 
 ## 仓库与环境
 - 路径：`/Users/luo/Project/clothing-management-server`
@@ -48,6 +48,10 @@
   - 当前成本侧核心模型已支持累计入库数量与累计成本金额。
 - 移动端接口：
   - `/api/mobile` 已覆盖认证、工作台、商品、订单、扫码录单、客户年龄段等小程序所需能力。
+  - `/api/mobile/dashboard/summary` 已支持小程序工作台摘要，并按角色控制毛利字段。
+  - 商品列表接口支持 `lowStock=true&lowStockThreshold=10` 按活跃 SKU 可用库存筛选低库存商品，后台 `/api/products` 与小程序 `/api/mobile/products` 口径一致。
+  - `/api/mobile/products/:id` 已支持管理员编辑商品；`/api/mobile/products/specifications/:id/stock` 已支持管理员维护规格库存，小程序商品维护不需要再绕到 web `/api/products`。
+  - `/api/mobile/products/import/*` 已支持管理员批量上新解析 Excel、识别图片和批量创建商品，小程序批量上新不需要再绕到 web `/api/products/import/*`。
 
 ## 迁移与发布经验
 - 生产迁移策略已收敛为“显式 SQL migration 优先”：
@@ -56,9 +60,18 @@
   - 发布脚本检测到 `drizzle/*.sql` 或 `drizzle/meta/*` 变更时，会要求先处理迁移
 - 已有辅助脚本与入口：
   - `scripts/check_pending_migrations.sh`
+  - `scripts/check_pending_migrations.mjs`
   - `scripts/apply_sql_migrations.sh`
+  - `scripts/apply_sql_migrations.mjs`
   - `npm run db:check-sql`
+  - `npm run db:apply-sql -- --dry-run drizzle/xxxx.sql`
   - `npm run db:apply-sql -- drizzle/xxxx.sql`
+- `drizzle/0000_spicy_guardian.sql` 与 `drizzle/meta/0000_snapshot.json` 只作为历史 migration/journal 补齐材料使用：
+  - 上线前必须确认生产库 `__drizzle_migrations` 已登记 `0000_spicy_guardian` 对应 hash，避免初始 migration 被误执行。
+  - 若生产库未登记 `0000_spicy_guardian` hash，只能在人工确认现有结构后登记 hash，绝不能执行 `drizzle/0000_spicy_guardian.sql`。
+  - `0000_snapshot.json` 保留历史 `product_brands` 等旧结构痕迹，不代表当前 schema；后续不要把它当作当前 `drizzle-kit generate` 的基线。
+  - 当前上线流程禁止直接使用 `drizzle-kit generate` 或 `drizzle-kit migrate`；新增 migration 先人工核对当前 schema，再走显式 SQL migration 流程。
+- `drizzle/0001_staff_miniapp_source.sql` 已改为幂等写法；生产库若已手动存在 `orders.source`，执行该 SQL 应只完成 hash 登记，不重复 `ADD COLUMN`。
 - 历史上 `drizzle-kit migrate` 在部分环境里可能出现“卡在 applying migrations 但不给清晰报错”的问题；遇到迁移异常时，优先按 SQL migration 流程处理，不要盲目重试发布。
 - 发布脚本已收敛为干净工作区检查 + 锁文件冻结安装；若发布前被脏工作区拦截，优先检查 `bun.lock`、`package-lock.json`、本地 stash 和未提交 migration 文件。
 - 生产机构建/重启链路存在环境差异时，优先走仓库内标准脚本和现有 skills，不要手工拼命令上线。
@@ -79,6 +92,8 @@
   - `0005_customer_statistics.sql`：客户/年龄段/支付时间/成本快照
   - `0006_cumulative_inbound_cost.sql`：累计入库成本
   - `0007_sku_barcode_labels.sql`：SKU 标签码
+  - `0008_order_item_sold_price.sql`：订单明细售出价 `sold_price`
+  - `0009_sku_image.sql`：SKU 图片 `image`
 - 若后续涉及这些能力在新环境落地，先核对对应 SQL 是否已执行，不要只看代码。
 
 ## 已知风险与待关注项
@@ -107,6 +122,19 @@
   - 本次不包含数据库结构变更，不涉及 `drizzle/*.sql` 或手动 SQL。
   - 线上已有历史脏关联已由取消订单 fallback 兼容；仍建议遇到无法匹配当前规格的 warning 时按现场订单人工核库存。
   - 如果用户删除某个规格且该规格没有当前颜色尺码可匹配，历史订单取消时会跳过该明细的库存回补并写 warning，需要按现场订单人工核库存。
+
+### 会话日期：2026-04-29
+- 变更内容：
+  - 生产 Nginx 站点 `/etc/nginx/conf.d/clothing.chuchu9.cn.conf` 已把 `chuchu9.cn` 加入同一站点的 `server_name`，配置备份为 `/etc/nginx/conf.d/clothing.chuchu9.cn.conf.bak.20260429094353`。
+  - Let’s Encrypt 证书 `clothing.chuchu9.cn` 已扩展为同时覆盖 `clothing.chuchu9.cn` 与 `chuchu9.cn`，证书路径保持 `/etc/letsencrypt/live/clothing.chuchu9.cn/fullchain.pem` 和 `privkey.pem`。
+  - 新证书到期时间为 `2026-07-28 00:45:37+00:00`，certbot 自动续期任务保持启用。
+- 验证结果：
+  - `nginx -t` 通过并已 reload Nginx。
+  - 公网 `https://chuchu9.cn/` 和 `https://clothing.chuchu9.cn/` 均返回 `200`。
+  - 公网 `https://chuchu9.cn/api/auth/me` 和 `https://clothing.chuchu9.cn/api/auth/me` 未登录均返回 `401`。
+  - 证书 SAN 确认为 `DNS:chuchu9.cn, DNS:clothing.chuchu9.cn`。
+- 遗留问题或风险：
+  - 根域名当前与后台站点复用同一套静态资源和 `/api` 反代；如后续根域名要做官网或跳转页，需要单独调整 Nginx 站点策略。
 
 ### 会话日期：2026-04-23
 - 变更内容：
@@ -148,7 +176,7 @@
   - 生产库 `order_items.sold_price` 与 `product_skus.image` 均已存在，但对应 SQL 文件此前未在生产工作区，后续若把 SQL 文件提交上线，需要同步核对 `__drizzle_migrations` hash 记录，避免已落库字段被误判为 pending 后重复执行。
 
 - 订单库存流转当前约定是“确认即扣减、发货不再重复扣减”；退款时只要订单已进入 `confirmed / shipped / delivered` 任一已扣减状态，都需要回补库存。后续若再改订单状态机，务必一起核对 `shipOrder / refundOrder / cancelOrder` 三处库存逻辑，避免库存与可售口径漂移。
-- 商品编辑当前仍是“整组删 SKU 再重建”的实现；若前端把旧规格的 `reservedStock` 一起带回，历史脏占用会迁移到新规格。后端已改为只在“同一规格颜色和尺码都未变化”时保留原占用，前端商品表单也不再回传隐藏的 `reservedStock`。
+- 商品编辑已改为已有 SKU 原地更新、新 SKU 单独插入、移除规格才删除；已占用规格不能改颜色、改尺码或删除，并会拦截总库存低于已占用库存的提交。
 - 订单列表分页排序必须使用稳定排序键；仅按 `created_at desc` 在同秒多单场景下可能导致跨页重复或乱序，后端查询应至少补 `id desc` 作为二级排序，并避免在分页后再做与数据库排序口径不同的二次排序。
 - Web 管理端订单列表现已支持按 `createdAt` 升序/降序切换；后端应继续把排序作为分页查询参数处理，并保持二级稳定排序键，避免只在当前页做本地排序导致翻页错乱。
 - 商品 Excel 导入现已支持两条链路并存：桌面端保留“前端本地解析再传 JSON”，Pad 端新增“原始 Excel 文件直传后端解析”，后端文件解析需复用现有 JSON 解析逻辑，避免 prompt 和草稿标准化分叉。
@@ -179,6 +207,65 @@
   - 数据库状态枚举暂未收缩，当前是应用层对历史状态做兼容归一；若后续要彻底删掉旧状态，仍需补数据库层迁移与历史数据清理方案。
 
 ## 最近会话摘要
+
+### 会话日期：2026-06-15
+- 变更内容：
+  - 将 `scripts/apply_sql_migrations.mjs` 与 `scripts/check_pending_migrations.mjs` 纳入 Git 暂存范围，避免生产 clone 后 `.sh` 入口 exec Node 脚本时报 ENOENT。
+  - `drizzle/meta/_journal.json` 补充 `0008_order_item_sold_price` 和 `0009_sku_image` 条目，保持 SQL 文件与 journal metadata 一致。
+  - `db:apply-sql` 对 `drizzle/0000_spicy_guardian.sql` 增加执行保护；若该历史补齐 migration 未登记 hash，脚本会拒绝执行破坏性 SQL。
+  - `AGENTS.md`、`PROJECT_MEMORY.md` 和 `README.md` 明确当前仓库禁止直接使用 `drizzle-kit generate/migrate` 作为上线流程，`0000_snapshot.json` 不可作为当前 schema 基线。
+  - `OrdersService.createOrder` 增加商品与 SKU 状态校验，拒绝下架商品或停用规格创建订单。
+- 验证结果：
+  - `bun test src/modules/orders/orders.service.test.ts src/modules/products/products.service.test.ts src/modules/products/product-import.service.test.ts` 通过。
+  - `npm run build` 通过。
+  - `npm run db:check-sql` 显示当前连接数据库 pending：`0001_staff_miniapp_source.sql`、`0008_order_item_sold_price.sql`、`0009_sku_image.sql`；未显示 `0000_spicy_guardian.sql`，说明当前连接库已登记 0000 hash。
+  - `npm run db:apply-sql -- --dry-run drizzle/0001_staff_miniapp_source.sql drizzle/0008_order_item_sold_price.sql drizzle/0009_sku_image.sql` 通过。
+  - `npm run db:apply-sql -- --dry-run drizzle/0000_spicy_guardian.sql` 输出已登记并跳过，未执行 SQL。
+  - `git diff --check` 通过。
+- 遗留问题或风险：
+  - 本轮仍未执行真实 SQL、未发布生产；上线前仍需按 SQL release 流程应用并登记 0001/0008/0009。
+
+### 会话日期：2026-06-14
+- 变更内容：
+  - `drizzle/0001_staff_miniapp_source.sql` 改为幂等写法，生产库若已存在 `orders.source` 也能继续完成 migration hash 登记。
+  - `ProductsService.updateProduct` 增加空规格数组拦截，避免 `specifications: []` 把现有 SKU 全部删除。
+  - 订单查询新增 `productSearch` 筛选参数，web/mobile 订单列表接口都会传入服务层；服务层按 `order_items.product_name / sku_code / color / size` 命中订单 ID 后再分页，支持小程序订单列表按商品筛选。
+  - 项目记忆补充 `0000_spicy_guardian` 与 `0000_snapshot.json` 的历史补齐定位：上线前必须确认生产 `__drizzle_migrations` 已登记 `0000_spicy_guardian`，且 snapshot 不可作为当前 schema 生成基线。
+- 验证结果：
+  - `bun test src/modules/orders/orders.service.test.ts` 通过，覆盖 `productSearch` 在分页前按商品关键词筛选订单。
+  - `bun test src/modules/products/products.service.test.ts src/modules/products/product-import.service.test.ts src/modules/orders/orders.service.test.ts` 通过。
+  - `npm run build` 通过。
+  - `npm run db:check-sql` 显示本地 pending：`0001_staff_miniapp_source.sql`、`0008_order_item_sold_price.sql`、`0009_sku_image.sql`。
+  - `npm run db:apply-sql -- --dry-run drizzle/0001_staff_miniapp_source.sql drizzle/0008_order_item_sold_price.sql drizzle/0009_sku_image.sql` 通过，确认只演练不写库。
+  - `git diff --check` 通过。
+- 遗留问题或风险：
+  - 本轮未执行真实 SQL、未登记 migration hash、未发布生产；上线前必须先 `git add drizzle/`，再按 SQL release 流程核对并应用 pending migration。
+
+### 会话日期：2026-05-31
+- 变更内容：
+  - 商品列表筛选新增 `lowStock` 与 `lowStockThreshold` 查询参数，后端按活跃 SKU 的 `GREATEST(stock - reserved_stock, 0) <= threshold` 找到低库存商品。
+  - 小程序工作台摘要补齐 mobile 端路由：`GET /api/mobile/dashboard/summary`，继续按角色控制是否返回毛利。
+  - 后台商品接口 `/api/products` 与小程序商品接口 `/api/mobile/products` 复用同一套低库存查询逻辑；本次不涉及数据库结构或 SQL migration。
+  - 小程序商品编辑与规格库存维护补齐 mobile 端路由：`PUT /api/mobile/products/:id`、`PATCH /api/mobile/products/specifications/:id/stock`。
+  - 小程序批量上新补齐 mobile 端路由：`POST /api/mobile/products/import/parse-excel-file`、`POST /api/mobile/products/import/parse-image`、`POST /api/mobile/products/import/bulk-create`。
+  - 商品更新规格时，如果同一规格未显式传入新图片，会保留原 `product_skus.image`，避免小程序编辑基础资料后误清空规格图。
+  - 商品编辑已从“整组删除 SKU 后重建”调整为已有规格原地更新、新规格单独插入、移除规格才删除，避免编辑基础资料或规格价格时改变已有 `product_skus.id`，影响订单、标签和库存引用。
+  - 商品更新会拦截已占用规格的改色、改码、删除，以及总库存低于已占用库存的提交，避免小程序商品编辑页绕过详情页库存保护。
+  - `ProductsService` 内部创建、更新、删除、库存维护读取商品时改用管理员口径，避免服务内部读取旧规格时误套销售角色脱敏，导致成本价等维护字段丢失。
+  - `npm run db:check-sql` 已增加 Node/mysql2 检查入口，避免本机 Homebrew MySQL 9 客户端缺少 `mysql_native_password` 插件时无法执行发布前只读 migration 检查。
+  - `npm run db:apply-sql` 已增加 Node/mysql2 执行入口和 `--dry-run` 演练模式，发布前可先确认会应用哪些 SQL，且不写库、不登记 hash。
+  - `drizzle/0008_order_item_sold_price.sql` 和 `drizzle/0009_sku_image.sql` 已改成幂等写法：字段已存在时不重复 `ADD COLUMN`，执行成功后仍可由 `db:apply-sql` 登记 migration hash。
+- 验证结果：
+  - `bun test src/modules/products/product-import.service.test.ts src/modules/products/products.service.test.ts` 通过，覆盖批量导入去重、规格图保留、规格原地更新、占用规格改删保护、占用库存保护和低库存筛选。
+  - `npm run build` 通过。
+  - `npm run db:check-sql` 可正常连接并输出 pending migration。
+  - `npm run db:apply-sql -- --dry-run drizzle/0008_order_item_sold_price.sql drizzle/0009_sku_image.sql` 输出会应用这两个文件，且随后的 `db:check-sql` 仍显示 pending，确认 dry-run 未写库。
+  - 只读核对当前数据库字段：`order_items.sold_price` 已存在，类型为 `decimal(10,2)`，当前 15 条订单明细无 `NULL` 或 `0`；`product_skus.image` 已存在，111 条 SKU 中 2 条已有图片。
+  - 生产服务器当前线上 commit `293e143` 的 `/var/clothing/server` 工作区执行 `npm run db:check-sql` 返回 `No pending SQL migrations.`，原因是线上工作区尚未包含本地未跟踪的 `0008/0009` SQL 文件。
+  - `git diff --check` 通过。
+- 遗留问题或风险：
+  - 当前低库存阈值由前端传入，默认 10；如果后续要支持门店自定义预警值，需要再补配置项或库存策略表。
+  - 本地提交并发布 `0008/0009` 后，生产会重新显示这两个 pending；上线前应按 SQL release 流程依次执行 `npm run db:apply-sql -- drizzle/0008_order_item_sold_price.sql` 和 `npm run db:apply-sql -- drizzle/0009_sku_image.sql`，让幂等 SQL 完成字段归一与 hash 登记，然后再发布后端/小程序。
 
 ### 会话日期：2026-04-17
 - 变更内容：

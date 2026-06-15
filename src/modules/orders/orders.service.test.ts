@@ -50,6 +50,85 @@ function createOrdersDbMock(orders: any[], orderItems: any[]) {
   };
 }
 
+function createProductSearchOrdersDbMock() {
+  const tracker = {
+    itemSearchLookups: 0,
+  };
+  const orders = [
+    {
+      id: 2,
+      orderNo: '202606140002',
+      customerName: 'Bob',
+      customerPhone: '13800000002',
+      finalAmount: '299.00',
+      paymentStatus: 'paid',
+      status: 'confirmed',
+      createdAt: new Date('2026-06-14T10:00:00'),
+    },
+  ];
+  const orderItems = [
+    {
+      id: 2,
+      orderId: 2,
+      productId: 10,
+      skuId: 100,
+      productName: '法式连衣裙',
+      skuCode: 'DRESS001-M-黑-P10',
+      color: '黑色',
+      size: 'M',
+      price: '299.00',
+      soldPrice: '299.00',
+      quantity: 1,
+    },
+  ];
+
+  return {
+    tracker,
+    select(fields?: unknown) {
+      return {
+        from(table: unknown) {
+          if (fields && table === schema.orderItems) {
+            return {
+              where: async () => {
+                tracker.itemSearchLookups += 1;
+                return [{ orderId: 2 }];
+              },
+            };
+          }
+
+          if (fields && table === schema.orders) {
+            return {
+              where: async () => [{ count: 1 }],
+            };
+          }
+
+          if (table === schema.orders) {
+            return {
+              where: () => ({
+                orderBy: () => ({
+                  limit: () => ({
+                    offset: async () => orders,
+                  }),
+                }),
+              }),
+            };
+          }
+
+          if (table === schema.orderItems) {
+            return {
+              where: async () => orderItems,
+            };
+          }
+
+          return {
+            where: async () => [],
+          };
+        },
+      };
+    },
+  };
+}
+
 function createOrderLifecycleDbMock(orderRow: any, itemRows: any[]) {
   const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
 
@@ -211,6 +290,24 @@ describe('OrdersService.getOrders', () => {
     await service.getOrders({ page: 1, pageSize: 1 });
 
     expect(dbMock.tracker.orderByArgsLength).toBe(2);
+  });
+
+  it('filters orders by product keyword before pagination', async () => {
+    const dbMock = createProductSearchOrdersDbMock();
+    const service = new OrdersService(dbMock as any);
+
+    const result = await service.getOrders({
+      page: 1,
+      pageSize: 20,
+      filters: {
+        productSearch: '连衣裙',
+      },
+    });
+
+    expect(dbMock.tracker.itemSearchLookups).toBe(1);
+    expect(result.total).toBe(1);
+    expect(result.items[0]?.id).toBe(2);
+    expect(result.items[0]?.items[0]?.productName).toBe('法式连衣裙');
   });
 
   it('keeps original price but hides cost snapshot for sales role', async () => {

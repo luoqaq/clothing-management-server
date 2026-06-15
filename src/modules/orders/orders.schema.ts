@@ -53,6 +53,7 @@ export const refundOrderSchema = z.object({
 
 export const orderFiltersSchema = z.object({
   search: z.string().optional(),
+  productSearch: z.string().optional(),
   status: z.string().optional(),
   paymentStatus: z.string().optional(),
   source: z.string().optional(),

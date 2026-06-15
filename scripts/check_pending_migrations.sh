@@ -24,6 +24,10 @@ if [ "${1:-}" = "--help" ]; then
   exit 0
 fi
 
+if command -v node >/dev/null 2>&1; then
+  exec node "${ROOT_DIR}/scripts/check_pending_migrations.mjs"
+fi
+
 if [ ! -f "${ENV_FILE}" ]; then
   echo "Missing env file: ${ENV_FILE}" >&2
   exit 1
@@ -60,7 +64,7 @@ mysql_exec() {
     "$@"
 }
 
-mapfile -t recorded_hashes < <(mysql_exec -Nse "SELECT hash FROM __drizzle_migrations")
+recorded_hash_output="$(mysql_exec -Nse "SELECT hash FROM __drizzle_migrations")"
 pending=0
 
 while IFS= read -r -d '' migration_file; do
@@ -68,12 +72,9 @@ while IFS= read -r -d '' migration_file; do
   migration_name="${migration_file#${ROOT_DIR}/}"
 
   found=0
-  for recorded_hash in "${recorded_hashes[@]}"; do
-    if [ "${recorded_hash}" = "${migration_hash}" ]; then
-      found=1
-      break
-    fi
-  done
+  if printf '%s\n' "${recorded_hash_output}" | grep -Fxq "${migration_hash}"; then
+    found=1
+  fi
 
   if [ "${found}" -eq 0 ]; then
     echo "PENDING ${migration_name}"

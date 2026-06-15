@@ -57,6 +57,20 @@
       "when": 1775260800000,
       "tag": "0007_sku_barcode_labels",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1780325168000,
+      "tag": "0008_order_item_sold_price",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1780325169000,
+      "tag": "0009_sku_image",
+      "breakpoints": true
     }
   ]
 }
