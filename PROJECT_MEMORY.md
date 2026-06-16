@@ -77,7 +77,7 @@
 - 生产机构建/重启链路存在环境差异时，优先走仓库内标准脚本和现有 skills，不要手工拼命令上线。
 
 ## 上线版本记录
-- 当前最新发布版本：`release-20260601.1`
+- 当前最新发布版本：`release-20260615.1`
 - 版本递增规则：每次上线前读取本节，按 `release-YYYYMMDD.N` 递增；同一天多次上线递增 `.N`。
 - 上线前说明必须包含：本次版本号、后端 commit、发布范围、是否包含数据库结构变更或数据修复。
 - 数据库相关上线说明必须包含：`drizzle/*.sql` 状态、生产库结构核对结果、手动 SQL 执行计划、验证 SQL/API、失败后的补救方式。
@@ -207,6 +207,22 @@
   - 数据库状态枚举暂未收缩，当前是应用层对历史状态做兼容归一；若后续要彻底删掉旧状态，仍需补数据库层迁移与历史数据清理方案。
 
 ## 最近会话摘要
+
+### 会话日期：2026-06-16
+- 变更内容：
+  - 发布版本 `release-20260615.1`，生产后端更新到 commit `b11e050`。
+  - 本次发布范围为后端服务与数据库 migration；PC 管理端未改动、未发布。
+  - 生产先显式执行 SQL migration，再运行标准后端发布入口 `/var/clothing/server/deploy/release.sh server`。
+- 验证结果：
+  - 生产 `npm run db:apply-sql -- --dry-run drizzle/0000_spicy_guardian.sql` 输出已登记并跳过，未执行历史破坏性 SQL。
+  - 生产按顺序执行并登记 `0001_staff_miniapp_source.sql`、`0008_order_item_sold_price.sql`、`0009_sku_image.sql`。
+  - 生产 `npm run db:check-sql` 显示 `No pending SQL migrations.`。
+  - `clothing-management-server` 为 `active`，本机 `/health` 返回成功。
+  - Nginx 配置检查通过；本机 HTTPS Host 头访问首页返回 `200`，`/api/auth/me` 未登录返回 `401`。
+  - 公网 `https://clothing.chuchu9.cn/` 返回 `200`，`https://clothing.chuchu9.cn/api/auth/me` 未登录返回 `401`。
+- 遗留问题或风险：
+  - 本次未发布 PC 管理端。
+  - 小程序代码 commit `e7599e5` 已推送并完成生产构建，微信开发者工具 CLI 上传因本机服务端口未开启超时，改由用户手动上传。
 
 ### 会话日期：2026-06-15
 - 变更内容：
