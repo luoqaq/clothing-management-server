@@ -1,6 +1,6 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-06-18
+最近更新：2026-06-19
 
 ## 仓库与环境
 - 路径：`/Users/luo/Project/clothing-management-server`
@@ -79,7 +79,7 @@
 - 生产机构建/重启链路存在环境差异时，优先走仓库内标准脚本和现有 skills，不要手工拼命令上线。
 
 ## 上线版本记录
-- 当前最新发布版本：`release-20260615.1`
+- 当前最新发布版本：`release-20260619.1`
 - 版本递增规则：每次上线前读取本节，按 `release-YYYYMMDD.N` 递增；同一天多次上线递增 `.N`。
 - 上线前说明必须包含：本次版本号、后端 commit、发布范围、是否包含数据库结构变更或数据修复。
 - 数据库相关上线说明必须包含：`drizzle/*.sql` 状态、生产库结构核对结果、手动 SQL 执行计划、验证 SQL/API、失败后的补救方式。
@@ -209,6 +209,24 @@
   - 数据库状态枚举暂未收缩，当前是应用层对历史状态做兼容归一；若后续要彻底删掉旧状态，仍需补数据库层迁移与历史数据清理方案。
 
 ## 最近会话摘要
+
+### 会话日期：2026-06-19
+- 变更内容：
+  - 发布版本 `release-20260619.1`，生产后端更新到 commit `f480e88`。
+  - 本次发布范围为后端兼职工资/经营利润接口与数据库 migration；PC 管理端和小程序未在本次发布。
+  - 生产显式执行并登记 `drizzle/0010_labor_costs.sql`，新增 `part_time_workers` 与 `labor_cost_records` 及工资记录日期、人员索引。
+  - 后端兼职人员选择继续复用销售账号，旧 `part_time_workers` 表仅保留兼容，不作为当前选择来源。
+- 验证结果：
+  - 本地 `git diff --check` 通过。
+  - 本地 `npm test` 通过。
+  - 本地 `npm run build` 通过。
+  - 生产 `npm run db:apply-sql -- --dry-run drizzle/0010_labor_costs.sql` 显示 `WOULD APPLY`，正式执行后 `npm run db:check-sql` 显示 `No pending SQL migrations.`。
+  - 生产只读核对确认 `labor_cost_records` 与 `part_time_workers` 表存在，`labor_cost_records_work_date_idx` 与 `labor_cost_records_worker_id_idx` 索引存在。
+  - `/var/clothing/server/deploy/release.sh server` 发布成功，`clothing-management-server` 为 `active`，本机 `/health` 返回成功。
+  - HTTPS 反代验证通过：`https://clothing.chuchu9.cn/` 返回 `200`，`/api/auth/me`、`/api/labor-costs`、`/api/statistics/operating-profit/overview`、`/api/mobile/labor-costs/operating-profit/daily` 未登录均返回 `401`。
+- 遗留问题或风险：
+  - 本次未发布 PC 管理端和小程序，前端入口需后续单独发布或上传后才能使用新接口。
+  - 生产后端仓库仍有历史未跟踪文件 `.env.bak.20260420215720`，本次发布未触碰该文件。
 
 ### 会话日期：2026-06-18
 - 变更内容：
