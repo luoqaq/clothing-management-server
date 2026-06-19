@@ -68,3 +68,33 @@ describe('StatisticsService.getSalesOverview', () => {
     expect(result.returningCustomers).toBe(1);
   });
 });
+
+describe('StatisticsService.getOperatingProfitOverview', () => {
+  it('keeps gross profit separate from labor cost and subtracts labor only for operating profit', async () => {
+    const service = new StatisticsService(createStatisticsDbMock([]) as any) as any;
+    service.getValidPaidOrders = async () => [
+      { id: 1, customerId: 1, customerPhone: '13800000001', finalAmount: 300, paidAt: new Date('2026-06-17 10:00:00') },
+    ];
+    service.getValidPaidOrderItems = async () => [
+      { orderId: 1, productId: 1, productCode: 'A-1', productName: '连衣裙', image: null, categoryId: 1, categoryName: '裙装', price: 300, costPriceSnapshot: 120, quantity: 1 },
+    ];
+    service.laborCostsService = {
+      getSummary: async () => ({
+        totalLaborCost: 80,
+        partTimeDays: 1,
+        selfDays: 0,
+        recordCount: 1,
+        avgLaborCostPerPartTimeDay: 80,
+      }),
+    };
+
+    const result = await service.getOperatingProfitOverview({ start: '2026-06-17', end: '2026-06-17' });
+
+    expect(result.totalRevenue).toBe(300);
+    expect(result.productCost).toBe(120);
+    expect(result.grossProfit).toBe(180);
+    expect(result.laborCost).toBe(80);
+    expect(result.operatingProfit).toBe(100);
+    expect(result.laborCostToGrossProfitRate).toBe(44.4);
+  });
+});

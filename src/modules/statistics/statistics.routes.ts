@@ -27,6 +27,9 @@ export function createStatisticsRoutes(db: MySql2Database<typeof schema>) {
   statistics.get('/cost/category-analysis', (c) => controller.getCostCategoryAnalysis(c));
   statistics.get('/cost/product-ranking', (c) => controller.getCostProductRanking(c));
 
+  statistics.get('/operating-profit/overview', (c) => controller.getOperatingProfitOverview(c));
+  statistics.get('/operating-profit/daily', (c) => controller.getDailyOperatingProfit(c));
+
   statistics.get('/export', (c) => controller.exportStatistics(c));
 
   return statistics;

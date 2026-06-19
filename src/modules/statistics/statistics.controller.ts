@@ -115,6 +115,26 @@ export class StatisticsController {
     }
   }
 
+  async getOperatingProfitOverview(c: Context) {
+    try {
+      const result = await this.service.getOperatingProfitOverview(this.parseDateRange(c));
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Get operating profit overview error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async getDailyOperatingProfit(c: Context) {
+    try {
+      const result = await this.service.getDailyOperatingProfit(this.parseDateRange(c));
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Get daily operating profit error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
   async getProductRankings(c: Context) {
     try {
       const result = await this.service.getProductRankings({ dateRange: this.parseDateRange(c), limit: this.parseLimit(c) });

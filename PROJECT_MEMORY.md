@@ -1,6 +1,6 @@
 # 服装管理后台后端 - 项目记忆
 
-最近更新：2026-06-15
+最近更新：2026-06-18
 
 ## 仓库与环境
 - 路径：`/Users/luo/Project/clothing-management-server`
@@ -46,9 +46,11 @@
 - 统计：
   - 统计接口已拆为“销售统计 / 成本统计”两组输出。
   - 当前成本侧核心模型已支持累计入库数量与累计成本金额。
+  - 经营利润口径为“销售额 - 商品成本 = 商品毛利；商品毛利 - 兼职工资 = 经营利润”，兼职工资不混入商品毛利。
 - 移动端接口：
   - `/api/mobile` 已覆盖认证、工作台、商品、订单、扫码录单、客户年龄段等小程序所需能力。
   - `/api/mobile/dashboard/summary` 已支持小程序工作台摘要，并按角色控制毛利字段。
+  - `/api/mobile/labor-costs/*` 已支持管理员查看兼职工资、经营利润概览、每日经营利润趋势和新增/补录工资，小程序端无需绕到 web 统计接口。
   - 商品列表接口支持 `lowStock=true&lowStockThreshold=10` 按活跃 SKU 可用库存筛选低库存商品，后台 `/api/products` 与小程序 `/api/mobile/products` 口径一致。
   - `/api/mobile/products/:id` 已支持管理员编辑商品；`/api/mobile/products/specifications/:id/stock` 已支持管理员维护规格库存，小程序商品维护不需要再绕到 web `/api/products`。
   - `/api/mobile/products/import/*` 已支持管理员批量上新解析 Excel、识别图片和批量创建商品，小程序批量上新不需要再绕到 web `/api/products/import/*`。
@@ -207,6 +209,44 @@
   - 数据库状态枚举暂未收缩，当前是应用层对历史状态做兼容归一；若后续要彻底删掉旧状态，仍需补数据库层迁移与历史数据清理方案。
 
 ## 最近会话摘要
+
+### 会话日期：2026-06-18
+- 变更内容：
+  - 新增移动端 `/api/mobile/labor-costs/operating-profit/daily`，复用统计服务的每日经营利润口径，供小程序兼职收益页绘制趋势图。
+  - 移动端兼职收益接口保持管理员权限，经营利润仍按“商品毛利 - 兼职工资”计算。
+- 验证结果：
+  - `npm run build` 通过。
+  - `npm test` 通过。
+  - `git diff --check` 通过。
+- 遗留问题或风险：
+  - 本次后端改动不新增 SQL migration；上线前仍需按已有 `0010_labor_costs.sql` 的数据库变更流程确认目标库状态。
+
+### 会话日期：2026-06-18
+- 变更内容：
+  - 兼职成本人员来源改为复用销售账号：`/api/labor-costs/workers` 与 `/api/mobile/labor-costs/workers` 返回 `users` 表中的非管理员账号。
+  - 兼职成本记录的 `workerId` 现在保存销售账号 `users.id`，`workerNameSnapshot` 保存账号姓名快照；旧 `part_time_workers` 表保留但不再作为选择来源。
+  - 后端不再暴露旧的兼职人员新增/维护路由；人员新增统一去销售账号管理中完成。
+- 验证结果：
+  - `npm test` 通过。
+  - `npm run build` 通过。
+  - `git diff --check` 通过。
+- 遗留问题或风险：
+  - 本次不新增 SQL migration；测试库已存在的 `part_time_workers` 表暂不清理，后续若确认彻底废弃再单独做清理迁移。
+
+### 会话日期：2026-06-17
+- 变更内容：
+  - 新增兼职成本模型：`part_time_workers` 与 `labor_cost_records`，配套 SQL migration 为 `drizzle/0010_labor_costs.sql`。
+  - 新增后端 `/api/labor-costs` 管理端接口和 `/api/mobile/labor-costs/*` 小程序管理员接口，支持兼职人员、用工记录、补录和经营利润查询。
+  - 统计新增 `/api/statistics/operating-profit/overview` 与 `/api/statistics/operating-profit/daily`，保持商品毛利不扣兼职工资，新增经营利润单独扣除兼职工资。
+- 验证结果：
+  - `bun test src/modules/statistics/statistics.service.test.ts` 通过。
+  - `npm test` 通过。
+  - `npm run build` 通过。
+  - `npm run db:apply-sql -- --dry-run drizzle/0010_labor_costs.sql` 显示 `WOULD APPLY drizzle/0010_labor_costs.sql`，未写库。
+  - `git diff --check` 通过。
+- 遗留问题或风险：
+  - 本轮未执行真实 SQL、未发布生产；上线前需按 SQL release 流程应用并登记 `0010_labor_costs.sql`。
+  - 当前连接库 `npm run db:check-sql` 仍显示历史 pending：`0001_staff_miniapp_source.sql`、`0008_order_item_sold_price.sql`、`0009_sku_image.sql`，以及本次新增 `0010_labor_costs.sql`；上线时需按生产实际状态核对。
 
 ### 会话日期：2026-06-16
 - 变更内容：

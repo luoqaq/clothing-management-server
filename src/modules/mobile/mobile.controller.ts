@@ -5,6 +5,7 @@ import { logger } from '../../utils/logger';
 import { error, success, successPaginated } from '../../utils/response';
 import { isAdminRole } from '../../utils/role';
 import { loginSchema } from '../auth/auth.schema';
+import { laborCostQuerySchema, laborCostRecordSchema, laborDateRangeSchema } from '../labor-costs/labor-costs.schema';
 import { orderFiltersSchema, orderSchema, shipOrderSchema, updateStatusSchema, cancelOrderSchema } from '../orders/orders.schema';
 import { bulkCreateProductsSchema, parseExcelImportSchema } from '../products/product-import.schema';
 import { ProductImportService } from '../products/product-import.service';
@@ -182,6 +183,97 @@ export class MobileController {
       return c.json(success(result));
     } catch (err: any) {
       logger.error('Get mobile dashboard summary error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async getLaborCostWorkers(c: Context) {
+    try {
+      const result = await this.service.getLaborCostsService().listWorkers('active');
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Get mobile labor cost workers error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async getLaborCostRecords(c: Context) {
+    try {
+      const query = laborCostQuerySchema.parse(c.req.query());
+      const page = query.page ? parseInt(query.page, 10) : 1;
+      const pageSize = query.pageSize ? parseInt(query.pageSize, 10) : 20;
+      const result = await this.service.getLaborCostsService().listRecords({
+        page,
+        pageSize,
+        filters: {
+          start: query.start,
+          end: query.end,
+          coverageType: query.coverageType,
+        },
+      });
+      return c.json(successPaginated(result.items, result.total, page, pageSize));
+    } catch (err: any) {
+      logger.error('Get mobile labor cost records error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async getLaborCostOperatingProfit(c: Context) {
+    try {
+      const query = laborDateRangeSchema.parse(c.req.query());
+      const today = new Date().toISOString().split('T')[0];
+      const result = await this.service.getStatisticsService().getOperatingProfitOverview({
+        start: query.start || today,
+        end: query.end || today,
+      });
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Get mobile labor cost operating profit error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async getLaborCostDailyOperatingProfit(c: Context) {
+    try {
+      const query = laborDateRangeSchema.parse(c.req.query());
+      const today = new Date().toISOString().split('T')[0];
+      const result = await this.service.getStatisticsService().getDailyOperatingProfit({
+        start: query.start || today,
+        end: query.end || today,
+      });
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Get mobile labor cost daily operating profit error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async createLaborCostRecord(c: Context) {
+    try {
+      const payload = laborCostRecordSchema.parse(await c.req.json());
+      const user = c.get('user');
+      const result = await this.service.getLaborCostsService().createRecord({
+        ...payload,
+        createdBy: user?.userId,
+      });
+      return c.json(success(result), 201);
+    } catch (err: any) {
+      logger.error('Create mobile labor cost record error:', err);
+      return c.json(error(err.message), 400);
+    }
+  }
+
+  async updateLaborCostRecord(c: Context) {
+    try {
+      const id = parseInt(c.req.param('id') || '0', 10);
+      const payload = laborCostRecordSchema.partial().parse(await c.req.json());
+      const result = await this.service.getLaborCostsService().updateRecord(id, payload);
+      if (!result) {
+        return c.json(error('兼职成本记录不存在'), 404);
+      }
+      return c.json(success(result));
+    } catch (err: any) {
+      logger.error('Update mobile labor cost record error:', err);
       return c.json(error(err.message), 400);
     }
   }

@@ -51,6 +51,45 @@ export interface Customer {
   updatedAt: string;
 }
 
+export type LaborCoverageType = 'self' | 'part_time';
+export type PartTimeWorkerStatus = 'active' | 'inactive';
+
+export interface PartTimeWorker {
+  id: number;
+  username?: string | null;
+  name: string;
+  phone?: string | null;
+  defaultDailyWage: number;
+  status: PartTimeWorkerStatus;
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LaborCostRecord {
+  id: number;
+  workDate: string;
+  workerId?: number | null;
+  workerNameSnapshot?: string | null;
+  coverageType: LaborCoverageType;
+  dailyWage: number;
+  paidAmount: number;
+  paymentMethod?: string | null;
+  paidAt?: string | null;
+  note?: string | null;
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LaborCostSummary {
+  totalLaborCost: number;
+  partTimeDays: number;
+  selfDays: number;
+  recordCount: number;
+  avgLaborCostPerPartTimeDay: number;
+}
+
 export type ProductStatus = 'draft' | 'active' | 'inactive';
 export type ProductSpecificationStatus = 'active' | 'inactive';
 
@@ -343,6 +382,30 @@ export interface StatisticsSummary {
   costGrowth: number;
   grossProfitGrowth: number;
   ordersGrowth: number;
+}
+
+export interface OperatingProfitOverviewResponse {
+  totalRevenue: number;
+  productCost: number;
+  grossProfit: number;
+  laborCost: number;
+  operatingProfit: number;
+  partTimeDays: number;
+  selfDays: number;
+  avgLaborCostPerPartTimeDay: number;
+  laborCostToGrossProfitRate: number;
+  laborCostToRevenueRate: number;
+  laborReturnMultiple: number;
+}
+
+export interface DailyOperatingProfitData {
+  date: string;
+  revenue: number;
+  productCost: number;
+  grossProfit: number;
+  laborCost: number;
+  operatingProfit: number;
+  partTimeRecordCount: number;
 }
 
 export interface CustomerAnalysisResponse {

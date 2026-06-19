@@ -7,10 +7,13 @@ import type {
   CostProductRankingItem,
   CostOverviewResponse,
   CustomerAnalysisResponse,
+  DailyOperatingProfitData,
   DailySalesData,
+  OperatingProfitOverviewResponse,
   ProductSalesRanking,
   StatisticsSummary,
 } from '../../types';
+import { LaborCostsService } from '../labor-costs/labor-costs.service';
 
 type DateRange = { start: string; end: string };
 
@@ -53,7 +56,11 @@ type ProductCostRow = {
 };
 
 export class StatisticsService {
-  constructor(private db: any) {}
+  private laborCostsService: LaborCostsService;
+
+  constructor(private db: any) {
+    this.laborCostsService = new LaborCostsService(db);
+  }
 
   private isSchemaCompatibilityError(error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -682,6 +689,81 @@ export class StatisticsService {
     return this.buildInventoryCostRanking(items)
       .sort((a, b) => b.totalCost - a.totalCost)
       .slice(0, limit);
+  }
+
+  async getOperatingProfitOverview(dateRange: DateRange): Promise<OperatingProfitOverviewResponse> {
+    const [orders, items, laborSummary] = await Promise.all([
+      this.getValidPaidOrders(dateRange),
+      this.getValidPaidOrderItems(dateRange),
+      this.laborCostsService.getSummary({ start: dateRange.start, end: dateRange.end }),
+    ]);
+
+    const totalRevenue = orders.reduce((sum, item) => sum + item.finalAmount, 0);
+    const productCost = items.reduce((sum, item) => sum + item.costPriceSnapshot * item.quantity, 0);
+    const grossProfit = totalRevenue - productCost;
+    const laborCost = laborSummary.totalLaborCost;
+    const operatingProfit = grossProfit - laborCost;
+
+    return {
+      totalRevenue,
+      productCost,
+      grossProfit,
+      laborCost,
+      operatingProfit,
+      partTimeDays: laborSummary.partTimeDays,
+      selfDays: laborSummary.selfDays,
+      avgLaborCostPerPartTimeDay: laborSummary.avgLaborCostPerPartTimeDay,
+      laborCostToGrossProfitRate: grossProfit > 0 ? Number(((laborCost / grossProfit) * 100).toFixed(1)) : 0,
+      laborCostToRevenueRate: totalRevenue > 0 ? Number(((laborCost / totalRevenue) * 100).toFixed(1)) : 0,
+      laborReturnMultiple: laborCost > 0 ? Number((grossProfit / laborCost).toFixed(1)) : 0,
+    };
+  }
+
+  async getDailyOperatingProfit(dateRange: DateRange): Promise<DailyOperatingProfitData[]> {
+    const [orders, items, laborCostMap] = await Promise.all([
+      this.getValidPaidOrders(dateRange),
+      this.getValidPaidOrderItems(dateRange),
+      this.laborCostsService.getDailyLaborCostMap({ start: dateRange.start, end: dateRange.end }),
+    ]);
+
+    const dailyData = new Map<string, DailyOperatingProfitData>();
+    let current = dayjs(dateRange.start);
+    while (current.isBefore(dayjs(dateRange.end).add(1, 'day'))) {
+      const date = current.format('YYYY-MM-DD');
+      const laborRow = laborCostMap.get(date);
+      dailyData.set(date, {
+        date,
+        revenue: 0,
+        productCost: 0,
+        grossProfit: 0,
+        laborCost: laborRow?.laborCost ?? 0,
+        operatingProfit: -(laborRow?.laborCost ?? 0),
+        partTimeRecordCount: laborRow?.partTimeRecordCount ?? 0,
+      });
+      current = current.add(1, 'day');
+    }
+
+    orders.forEach((order) => {
+      const date = dayjs(order.paidAt).format('YYYY-MM-DD');
+      const currentRow = dailyData.get(date);
+      if (!currentRow) return;
+      currentRow.revenue += order.finalAmount;
+      currentRow.grossProfit = currentRow.revenue - currentRow.productCost;
+      currentRow.operatingProfit = currentRow.grossProfit - currentRow.laborCost;
+    });
+
+    items.forEach((item) => {
+      const order = orders.find((currentOrder) => currentOrder.id === item.orderId);
+      if (!order) return;
+      const date = dayjs(order.paidAt).format('YYYY-MM-DD');
+      const currentRow = dailyData.get(date);
+      if (!currentRow) return;
+      currentRow.productCost += item.costPriceSnapshot * item.quantity;
+      currentRow.grossProfit = currentRow.revenue - currentRow.productCost;
+      currentRow.operatingProfit = currentRow.grossProfit - currentRow.laborCost;
+    });
+
+    return Array.from(dailyData.values()).sort((a, b) => a.date.localeCompare(b.date));
   }
 
   async getProductRankings(params: { dateRange?: DateRange; limit?: number }): Promise<ProductSalesRanking[]> {

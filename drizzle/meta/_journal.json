@@ -71,6 +71,13 @@
       "when": 1780325169000,
       "tag": "0009_sku_image",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1781712000000,
+      "tag": "0010_labor_costs",
+      "breakpoints": true
     }
   ]
 }

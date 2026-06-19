@@ -15,6 +15,7 @@ import { createStatisticsRoutes } from './modules/statistics/statistics.routes';
 import { createMobileRoutes } from './modules/mobile/mobile.routes';
 import { createDashboardRoutes } from './modules/dashboard/dashboard.routes';
 import { createCustomersRoutes } from './modules/customers/customers.routes';
+import { createLaborCostsRoutes } from './modules/labor-costs/labor-costs.routes';
 
 const app = new Hono();
 const PORT = parseInt(Bun.env.PORT || '3000');
@@ -52,6 +53,7 @@ async function initializeApp() {
   app.route('/api/customers', createCustomersRoutes(db));
   app.route('/api/statistics', createStatisticsRoutes(db));
   app.route('/api/dashboard', createDashboardRoutes(db));
+  app.route('/api/labor-costs', createLaborCostsRoutes(db));
   app.route('/api/mobile', createMobileRoutes(db));
 
   // 全局错误处理
